@@ -3,6 +3,8 @@ const { execSync } = require("child_process");
 const branch = "claude/website-improvements-GRFtX";
 
 const commands = [
+  `git fetch origin ${branch}`,
+  `git checkout ${branch}`,
   "git checkout main",
   "git pull origin main",
   `git merge ${branch}`,

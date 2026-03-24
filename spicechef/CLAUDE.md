@@ -1,98 +1,138 @@
-# SpiceChef
+# SpiceChef — Claude Context File
 
-**Upload any cookbook. Cook anything. Your content. Your kitchen.**
+## Concept
+SpiceChef lets users upload any cookbook PDF they own and transforms it into a fully guided cooking experience — ingredient checklists, step-by-step cook mode, built-in timers, and auto-scaled serving quantities. It is a **tool, not a content platform**. Users bring their own content.
 
-## Product Identity
-
-SpiceChef is an "empty notebook" for cooking. It does not own or provide recipe content — users bring their own cookbooks (PDF), family recipes, URLs, or handwritten recipes. SpiceChef transforms them into a fully guided, interactive cooking experience.
-
-Think: GoodNotes for cooking.
-
-## Tech Stack
-
-- React Native (Expo)
-- Claude API (recipe extraction from PDFs)
-- Supabase (backend/auth)
-- ElevenLabs TTS (Phase 2 — voice narration)
-- DALL-E 3 (Phase 2 — recipe images)
+---
 
 ## Design System
 
-| Token          | Value                                          |
-| -------------- | ---------------------------------------------- |
-| Background     | Dark forest green `#0B1610`                    |
-| Accent/Gold    | Aged gold `#C8A44A`                            |
-| Text           | Cream                                          |
-| Heading font   | Cormorant Garamond (editorial, cookbook feel)   |
-| Body font      | Plus Jakarta Sans                              |
-| Energy         | Calm, refined, culinary-magazine               |
-| Tone of voice  | Knowledgeable culinary companion. "Enjoy your meal." not "Amazing job!" |
+### Colors
+| Token       | Hex       | Usage                          |
+|-------------|-----------|--------------------------------|
+| `BG`        | `#0B1610` | Dark forest green — app background |
+| `ACCENT`    | `#C8A44A` | Aged gold — CTAs, highlights   |
+| `TEXT`      | `#F3ECD8` | Cream — primary text           |
+| `SURFACE`   | `#162216` | Slightly lighter bg for cards  |
+| `BORDER`    | `#2A3B2A` | Subtle borders / dividers      |
+| `MUTED`     | `#7A8C7A` | Secondary / placeholder text   |
 
-## Phase 1 Screens (9 total)
+### Typography
+- **Headings**: Cormorant Garamond (serif, loaded via `@expo-google-fonts/cormorant-garamond`)
+- **Body / UI**: Plus Jakarta Sans (sans-serif, loaded via `@expo-google-fonts/plus-jakarta-sans`)
 
-1. **Splash** — Single "Get Started" CTA, no sign-in required
-2. **Onboarding 1** — Dietary restrictions (multi-select chips, skippable)
-3. **Onboarding 2** — Skill level (Just Starting / Home Cook / Experienced, skippable)
-4. **Onboarding 3** — Household size for auto-scaling (1 / 2 / 3-4 / 5+, skippable) + preference summary as gold tags
-5. **Home Library** — Upload cookbook PDF or browse starter public domain books
-6. **Recipe Browser** — AI-extracted recipe list with dietary/time filters, veg/non-veg dot indicator (green/red)
-7. **Ingredient Checklist** — Grouped by category (Produce / Dairy / Pantry / Spices), checkboxes, Shopping List tab for unchecked items
-8. **Cook Mode** — One step at a time, gold-highlighted quantities, inline timer, per-step ingredient pills, large thumb-friendly nav
-9. **Completion** — Stats (steps / minutes / ingredients), star rating, shareable recipe card, Back to Library
+### Tone
+Calm, refined, culinary-magazine. Not gamified, not fitness-app. Think *Monocle* meets *Bon Appétit*.
 
-## Phase 1 Core Features
+---
 
-- **PDF Upload & AI Extraction** — Claude API extracts recipe names, ingredients with quantities, cook times, dietary flags, step-by-step instructions. Runs once on upload, cached. Bad PDFs rejected gracefully.
-- **Ingredient Checklist** — Grouped by kitchen category. Shopping List tab collects unchecked items, shareable via native iOS share sheet.
-- **Cook Mode** — One step at a time. Quantities/times highlighted in gold. Inline timer auto-appears for time mentions. Per-step ingredients shown below instruction card. Large prev/next buttons.
-- **Serving Size Auto-Scaling** — Default from onboarding, overridable per session on ingredient checklist screen.
-- **Dietary Filtering** — From onboarding, toggleable per session in recipe browser.
-- **Recipe Card Sharing** — Post-cook shareable card with name, stats, star rating, "Cooked with SpiceChef" watermark. No full instructions (copyright safe). Shareable via WhatsApp, Instagram Stories, iMessage.
+## Tech Stack
+| Layer        | Choice                              |
+|--------------|-------------------------------------|
+| Framework    | React Native (Expo SDK 55)          |
+| Navigation   | React Navigation v7 (native stack)  |
+| Auth + DB    | Supabase                            |
+| State        | Zustand                             |
+| AI           | Claude API (PDF extraction + parsing) |
+| TTS          | ElevenLabs (Phase 2)                |
+| Images       | DALL-E 3 (Phase 2)                  |
+| Fonts        | expo-font + @expo-google-fonts      |
 
-## Phase 2 Features
+---
 
-- Voice narration (ElevenLabs TTS)
-- Screen-stay-on during cook mode
-- AI image generation per recipe (DALL-E 3)
-- Sign in with Apple and Google
-- Photo of recipe page → AI text extraction
-- Manual recipe entry
-- Extract cover image from PDF
-- Cooking history and favourites
+## Folder Structure
+```
+src/
+  screens/       # One file per screen
+  components/    # Shared UI components
+  lib/           # supabase.ts, claude.ts, etc.
+  hooks/         # useRecipes, useSession, etc.
+  store/         # Zustand stores
+```
 
-## Phase 3 Features
+---
 
-- Social media video import (TikTok, Instagram, YouTube → recipe)
-- Website URL import
-- Meal planning and calendar
-- Pantry tracking
-- Grocery delivery integration
-- Multiple language support
+## Supabase Schema
 
-## Relationship to SpiceStrong
+### `users`
+```sql
+id          uuid primary key references auth.users
+email       text
+dietary     text[]        -- e.g. ["vegetarian", "gluten-free"]
+skill_level text          -- "beginner" | "intermediate" | "advanced"
+serves      int           -- default serving size preference
+created_at  timestamptz default now()
+```
 
-- **SpiceStrong**: Curated high-protein fitness cooking. AI-generated recipes. Closed content system.
-- **SpiceChef**: Any recipe from any book. Open content system. Broader audience.
-- Shared tech stack — cook mode architecture, timer logic, recipe card components carry over.
+### `cookbooks`
+```sql
+id          uuid primary key default gen_random_uuid()
+user_id     uuid references users(id)
+title       text
+file_url    text          -- Supabase Storage path
+cover_url   text
+created_at  timestamptz default now()
+```
 
-## Competitive Positioning
+### `recipes`
+```sql
+id            uuid primary key default gen_random_uuid()
+cookbook_id   uuid references cookbooks(id)
+user_id       uuid references users(id)
+title         text
+ingredients   jsonb         -- [{ name, amount, unit }]
+steps         jsonb         -- [{ order, text, timer_seconds? }]
+base_serves   int
+tags          text[]
+created_at    timestamptz default now()
+```
 
-Primary competitor: BeChef (social media recipe collector). SpiceChef differentiates as a personal cookbook library. BeChef's PDF import is bolted-on; ours is the entire product.
+### `cook_sessions`
+```sql
+id          uuid primary key default gen_random_uuid()
+user_id     uuid references users(id)
+recipe_id   uuid references recipes(id)
+started_at  timestamptz default now()
+completed   boolean default false
+step_index  int default 0
+serves      int
+```
 
-## Open Questions
+---
 
-- App name final confirmation (BeChef similarity risk)
-- Monetisation model (freemium, one-time, subscription?)
-- PDF rejection UX details
-- Public domain starter library curation (Project Gutenberg)
-- Serving size override mid-cook vs only before starting
-- Rating data usage in Phase 2
-- Recipe card copyright boundary (legal review)
+## Screen Map (Phase 1)
+| # | Screen               | Route name          |
+|---|----------------------|---------------------|
+| 0 | Splash               | `Splash`            |
+| 1 | Onboarding — Diet    | `OnboardingDiet`    |
+| 2 | Onboarding — Skill   | `OnboardingSkill`   |
+| 3 | Onboarding — Serves  | `OnboardingServes`  |
+| 4 | Home Library         | `HomeLibrary`       |
+| 5 | Recipe Browser       | `RecipeBrowser`     |
+| 6 | Ingredient Checklist | `IngredientChecklist` |
+| 7 | Cook Mode            | `CookMode`          |
+| 8 | Completion           | `Completion`        |
 
-## Conventions
+---
 
-- No AI-generated food images in Phase 1
-- No emojis in UI tone — calm, refined
-- Skip + Next on every onboarding screen (Skip = muted underline, Next = gold pill button)
-- Veg/non-veg dot indicator follows Indian food convention (green/red)
-- All user content stored locally, never shared without explicit action
+## Architecture Decisions
+- **Onboarding data** is stored in Zustand (`useOnboardingStore`) and flushed to Supabase `users` table on completion.
+- **PDF parsing** happens server-side via a Supabase Edge Function that calls the Claude API. The raw PDF is uploaded to Storage first, then the Edge Function is invoked.
+- **Serving scale** is computed client-side: `scaledAmount = (baseAmount / recipe.base_serves) * user.serves`.
+- **Cook Mode** uses `react-native-reanimated` for step transitions. Timer state lives in a Zustand slice.
+- **Fonts** are loaded in `App.tsx` with `useFonts` before the navigator renders (guarded by `AppLoading` / `SplashScreen`).
+- All screens use `SafeAreaView` from `react-native-safe-area-context`.
+
+---
+
+## Environment Variables (`.env`)
+```
+EXPO_PUBLIC_SUPABASE_URL=
+EXPO_PUBLIC_SUPABASE_ANON_KEY=
+EXPO_PUBLIC_CLAUDE_API_KEY=      # used in Edge Function, not client
+```
+
+---
+
+## Current Phase
+**Phase 1** — Onboarding flow complete. Next: Home Library + PDF upload.

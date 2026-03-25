@@ -1,4 +1,3 @@
-import { File } from 'expo-file-system';
 import { supabase } from './supabase';
 import { Cookbook, Recipe } from '../store/recipeStore';
 
@@ -25,16 +24,15 @@ export async function uploadAndParseCookbook(
   // 1. Upload PDF to Supabase Storage
   notify('uploading', 'Uploading PDF...');
 
-  const fileExt = fileName.split('.').pop()?.toLowerCase() || 'pdf';
   const storagePath = `uploads/${Date.now()}_${fileName}`;
 
-  // Read file as bytes using the new File API (SDK 54+)
-  const file = new File(fileUri);
-  const bytes = await file.bytes();
+  // Read the local file as a blob via fetch (works reliably on all RN platforms)
+  const fileResponse = await fetch(fileUri);
+  const blob = await fileResponse.blob();
 
   const { error: uploadError } = await supabase.storage
     .from('cookbooks')
-    .upload(storagePath, bytes, {
+    .upload(storagePath, blob, {
       contentType: 'application/pdf',
       upsert: false,
     });

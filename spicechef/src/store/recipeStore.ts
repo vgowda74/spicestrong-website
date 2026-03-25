@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface Ingredient {
   name: string;
@@ -41,28 +43,12 @@ const ACCENT_PALETTE = ['#6B3A2A', '#2C4A3E', '#3D3228', '#1B3A4B', '#4A3728'];
 
 const MOCK_COOKBOOKS: Cookbook[] = [
   {
-    id: 'cb1',
-    title: 'Plenty More',
-    author: 'Yotam Ottolenghi',
-    accent_color: '#4A5E3A',
-    recipe_count: 39,
-    created_at: '2026-03-01',
-  },
-  {
     id: 'cb2',
     title: 'Indian-ish',
     author: 'Priya Krishna',
     accent_color: '#6B4A2A',
-    recipe_count: 52,
+    recipe_count: 5,
     created_at: '2026-03-10',
-  },
-  {
-    id: 'cb3',
-    title: 'Death & Co.',
-    author: 'David Kaplan',
-    accent_color: '#2C3A4E',
-    recipe_count: 148,
-    created_at: '2026-03-15',
   },
 ];
 
@@ -184,7 +170,7 @@ const MOCK_RECIPES: Recipe[] = [
       { order: 4, title: 'Slow cook', text: 'Combine lentils and masala. Add cream and simmer on low for **30 minutes**, stirring occasionally.', timer_seconds: 1800, timer_label: 'Slow cook timer', needed_ingredients: ['Cooked lentils', '100ml cream'] },
     ],
     base_serves: 4,
-    tags: ['Lentils', 'Butter', 'Slow cook'],
+    tags: ['Vegetarian', 'Lentils', 'Slow cook'],
     duration_mins: 90,
   },
   {
@@ -228,38 +214,20 @@ const MOCK_RECIPES: Recipe[] = [
       { order: 4, title: 'Finish and serve', text: 'Season with salt. Garnish with fresh coriander. Serve with warm rotis or rice.' },
     ],
     base_serves: 4,
-    tags: ['Potato', 'Cauliflower', 'Quick'],
+    tags: ['Vegetarian', 'Potato', 'Quick'],
     duration_mins: 25,
-  },
-  // Plenty More recipes
-  {
-    id: 'r6',
-    cookbook_id: 'cb1',
-    title: 'Mixed Mushroom Ragout',
-    ingredients: [
-      { name: 'Mixed mushrooms', amount: 500, unit: 'g', category: 'PRODUCE' },
-      { name: 'Shallots', amount: 3, unit: '', category: 'PRODUCE' },
-      { name: 'Thyme', amount: 4, unit: 'sprigs', category: 'PRODUCE' },
-      { name: 'White wine', amount: 100, unit: 'ml', category: 'PANTRY' },
-      { name: 'Butter', amount: 40, unit: 'g', category: 'DAIRY' },
-    ],
-    steps: [
-      { order: 1, title: 'Prep mushrooms', text: 'Clean and slice the mixed mushrooms. Finely dice the shallots.' },
-      { order: 2, title: 'Sauté', text: 'Melt butter in a large pan. Cook shallots for **3 minutes** until soft. Add mushrooms and thyme.', timer_seconds: 180, timer_label: 'Shallot timer', needed_ingredients: ['40g butter', '3 shallots', 'Thyme'] },
-      { order: 3, title: 'Deglaze and finish', text: 'Cook mushrooms for **8 minutes** until golden. Deglaze with wine and reduce until syrupy.', timer_seconds: 480, timer_label: 'Mushroom timer', needed_ingredients: ['Mushrooms', '100ml white wine'] },
-    ],
-    base_serves: 4,
-    tags: ['Vegetarian', 'Mushroom', 'Quick'],
-    duration_mins: 20,
   },
 ];
 
 interface RecipeState {
   cookbooks: Cookbook[];
   recipes: Recipe[];
+  cookbookFilters: Record<string, string>; // cookbookId -> active filter
   getCookbook: (id: string) => Cookbook | undefined;
   getRecipesByCookbook: (cookbookId: string) => Recipe[];
   getRecipe: (id: string) => Recipe | undefined;
+  getCookbookFilter: (cookbookId: string) => string;
+  setCookbookFilter: (cookbookId: string, filter: string) => void;
   addCookbook: (title: string, author?: string, newRecipes?: Recipe[]) => Cookbook;
   addParsedCookbook: (cookbook: Cookbook, recipes: Recipe[]) => void;
   addParsingCookbook: (title: string) => Cookbook;
@@ -268,83 +236,105 @@ interface RecipeState {
   updateCookbookRecipeCount: (id: string, count: number) => void;
 }
 
-export const useRecipeStore = create<RecipeState>((set, get) => ({
-  cookbooks: MOCK_COOKBOOKS,
-  recipes: MOCK_RECIPES,
+export const useRecipeStore = create<RecipeState>()(
+  persist(
+    (set, get) => ({
+      cookbooks: MOCK_COOKBOOKS,
+      recipes: MOCK_RECIPES,
+      cookbookFilters: {},
 
-  getCookbook: (id) => get().cookbooks.find((c) => c.id === id),
+      getCookbook: (id) => get().cookbooks.find((c) => c.id === id),
 
-  getRecipesByCookbook: (cookbookId) =>
-    get().recipes.filter((r) => r.cookbook_id === cookbookId),
+      getRecipesByCookbook: (cookbookId) =>
+        get().recipes.filter((r) => r.cookbook_id === cookbookId),
 
-  getRecipe: (id) => get().recipes.find((r) => r.id === id),
+      getRecipe: (id) => get().recipes.find((r) => r.id === id),
 
-  addCookbook: (title, author = 'Unknown', newRecipes = []) => {
-    const id = `cb_${Date.now()}`;
-    const cookbook: Cookbook = {
-      id,
-      title,
-      author,
-      accent_color: ACCENT_PALETTE[get().cookbooks.length % ACCENT_PALETTE.length],
-      recipe_count: newRecipes.length,
-      created_at: new Date().toISOString().split('T')[0],
-    };
-    set((state) => ({
-      cookbooks: [...state.cookbooks, cookbook],
-      recipes: [...state.recipes, ...newRecipes],
-    }));
-    return cookbook;
-  },
+      getCookbookFilter: (cookbookId) => get().cookbookFilters[cookbookId] || 'All',
 
-  /** Add a cookbook + recipes returned from the Supabase Edge Function */
-  addParsedCookbook: (cookbook, recipes) => {
-    set((state) => ({
-      cookbooks: [...state.cookbooks, cookbook],
-      recipes: [...state.recipes, ...recipes],
-    }));
-  },
+      setCookbookFilter: (cookbookId, filter) => {
+        set((state) => ({
+          cookbookFilters: { ...state.cookbookFilters, [cookbookId]: filter },
+        }));
+      },
 
-  /** Add a placeholder cookbook while parsing is in progress */
-  addParsingCookbook: (title) => {
-    const id = `parsing_${Date.now()}`;
-    const cookbook: Cookbook = {
-      id,
-      title,
-      author: '',
-      accent_color: ACCENT_PALETTE[get().cookbooks.length % ACCENT_PALETTE.length],
-      recipe_count: 0,
-      created_at: new Date().toISOString().split('T')[0],
-      parsing: true,
-    };
-    set((state) => ({
-      cookbooks: [cookbook, ...state.cookbooks],
-    }));
-    return cookbook;
-  },
+      addCookbook: (title, author = 'Unknown', newRecipes = []) => {
+        const id = `cb_${Date.now()}`;
+        const cookbook: Cookbook = {
+          id,
+          title,
+          author,
+          accent_color: ACCENT_PALETTE[get().cookbooks.length % ACCENT_PALETTE.length],
+          recipe_count: newRecipes.length,
+          created_at: new Date().toISOString().split('T')[0],
+        };
+        set((state) => ({
+          cookbooks: [...state.cookbooks, cookbook],
+          recipes: [...state.recipes, ...newRecipes],
+        }));
+        return cookbook;
+      },
 
-  /** Replace the placeholder with the real parsed cookbook + recipes */
-  finishParsingCookbook: (placeholderId, cookbook, recipes) => {
-    set((state) => ({
-      cookbooks: state.cookbooks.map((cb) =>
-        cb.id === placeholderId ? { ...cookbook, parsing: false } : cb
-      ),
-      recipes: [...state.recipes, ...recipes],
-    }));
-  },
+      /** Add a cookbook + recipes returned from the Supabase Edge Function */
+      addParsedCookbook: (cookbook, recipes) => {
+        set((state) => ({
+          cookbooks: [...state.cookbooks, cookbook],
+          recipes: [...state.recipes, ...recipes],
+        }));
+      },
 
-  /** Remove the placeholder if parsing failed */
-  failParsingCookbook: (placeholderId) => {
-    set((state) => ({
-      cookbooks: state.cookbooks.filter((cb) => cb.id !== placeholderId),
-    }));
-  },
+      /** Add a placeholder cookbook while parsing is in progress */
+      addParsingCookbook: (title) => {
+        const id = `parsing_${Date.now()}`;
+        const cookbook: Cookbook = {
+          id,
+          title,
+          author: '',
+          accent_color: ACCENT_PALETTE[get().cookbooks.length % ACCENT_PALETTE.length],
+          recipe_count: 0,
+          created_at: new Date().toISOString().split('T')[0],
+          parsing: true,
+        };
+        set((state) => ({
+          cookbooks: [cookbook, ...state.cookbooks],
+        }));
+        return cookbook;
+      },
 
-  /** Update recipe_count after parsing completes */
-  updateCookbookRecipeCount: (id, count) => {
-    set((state) => ({
-      cookbooks: state.cookbooks.map((cb) =>
-        cb.id === id ? { ...cb, recipe_count: count } : cb
-      ),
-    }));
-  },
-}));
+      /** Replace the placeholder with the real parsed cookbook + recipes */
+      finishParsingCookbook: (placeholderId, cookbook, recipes) => {
+        set((state) => ({
+          cookbooks: state.cookbooks.map((cb) =>
+            cb.id === placeholderId ? { ...cookbook, parsing: false } : cb
+          ),
+          recipes: [...state.recipes, ...recipes],
+        }));
+      },
+
+      /** Remove the placeholder if parsing failed */
+      failParsingCookbook: (placeholderId) => {
+        set((state) => ({
+          cookbooks: state.cookbooks.filter((cb) => cb.id !== placeholderId),
+        }));
+      },
+
+      /** Update recipe_count after parsing completes */
+      updateCookbookRecipeCount: (id, count) => {
+        set((state) => ({
+          cookbooks: state.cookbooks.map((cb) =>
+            cb.id === id ? { ...cb, recipe_count: count } : cb
+          ),
+        }));
+      },
+    }),
+    {
+      name: 'spicechef-recipes',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        cookbooks: state.cookbooks.filter((cb) => !cb.parsing),
+        recipes: state.recipes,
+        cookbookFilters: state.cookbookFilters,
+      }),
+    }
+  )
+);

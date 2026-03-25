@@ -27,7 +27,6 @@ import IngredientChecklistScreen from './src/screens/IngredientChecklistScreen';
 import CookModeScreen from './src/screens/CookModeScreen';
 import CompletionScreen from './src/screens/CompletionScreen';
 import RecentScreen from './src/screens/RecentScreen';
-import ProfileScreen from './src/screens/ProfileScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -90,16 +89,6 @@ function MainTabs() {
           tabBarLabel: 'recent',
         }}
       />
-      <Tab.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <TabIcon name="person-outline" color={color} size={size} />
-          ),
-          tabBarLabel: 'profile',
-        }}
-      />
     </Tab.Navigator>
   );
 }
@@ -119,7 +108,7 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Splash"
+        initialRouteName="HomeLibrary"
         screenOptions={{ headerShown: false, animation: 'slide_from_right' }}
       >
         <Stack.Screen

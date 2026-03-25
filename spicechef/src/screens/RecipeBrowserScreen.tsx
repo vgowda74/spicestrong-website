@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -27,7 +27,7 @@ function getCookbookEmoji(title: string): string {
   return '📖';
 }
 
-const FILTERS = ['All', 'Vegetarian', 'Under 30 min', 'Cooking', 'Quick', 'Indian'];
+const FILTERS = ['All', 'Vegetarian', 'Under 30 min'];
 
 function RecipeRow({ recipe, onPress }: { recipe: Recipe; onPress: () => void }) {
   return (
@@ -46,9 +46,10 @@ function RecipeRow({ recipe, onPress }: { recipe: Recipe; onPress: () => void })
 
 export default function RecipeBrowserScreen({ route, navigation }: Props) {
   const { cookbookId } = route.params;
-  const { getCookbook, getRecipesByCookbook } = useRecipeStore();
+  const { getCookbook, getRecipesByCookbook, getCookbookFilter, setCookbookFilter } = useRecipeStore();
   const { dietary } = useOnboardingStore();
-  const [activeFilter, setActiveFilter] = useState('All');
+  const activeFilter = getCookbookFilter(cookbookId);
+  const setActiveFilter = (filter: string) => setCookbookFilter(cookbookId, filter);
 
   const cookbook = getCookbook(cookbookId);
   const allRecipes = getRecipesByCookbook(cookbookId);

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,50 +7,39 @@ import {
   FlatList,
   SafeAreaView,
   StatusBar,
+  ScrollView,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../../App';
 import { Colors, Fonts, Spacing } from '../lib/theme';
 import { useRecipeStore, Recipe } from '../store/recipeStore';
+import { useOnboardingStore } from '../store/onboardingStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RecipeBrowser'>;
 
-function RecipeCard({ recipe, onPress }: { recipe: Recipe; onPress: () => void }) {
+function getCookbookEmoji(title: string): string {
+  const lower = title.toLowerCase();
+  if (lower.includes('indian') || lower.includes('spice')) return '🍛';
+  if (lower.includes('plenty') || lower.includes('vegetable') || lower.includes('veg')) return '🥬';
+  if (lower.includes('death') || lower.includes('cocktail') || lower.includes('drink')) return '🍸';
+  if (lower.includes('italian') || lower.includes('pasta')) return '🍝';
+  return '📖';
+}
+
+const FILTERS = ['All', 'Vegetarian', 'Under 30 min', 'Cooking', 'Quick', 'Indian'];
+
+function RecipeRow({ recipe, onPress }: { recipe: Recipe; onPress: () => void }) {
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
-      <View style={styles.cardAccent} />
-      <View style={styles.cardContent}>
-        <Text style={styles.cardTitle}>{recipe.title}</Text>
-
-        {/* Tags */}
-        <View style={styles.tagRow}>
-          {recipe.tags.map((tag) => (
-            <View key={tag} style={styles.tag}>
-              <Text style={styles.tagText}>{tag}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Meta row */}
-        <View style={styles.metaRow}>
-          <View style={styles.metaItem}>
-            <Ionicons name="time-outline" size={13} color={Colors.muted} />
-            <Text style={styles.metaText}>{recipe.duration_mins} min</Text>
-          </View>
-          <View style={styles.metaDot} />
-          <View style={styles.metaItem}>
-            <Ionicons name="people-outline" size={13} color={Colors.muted} />
-            <Text style={styles.metaText}>Serves {recipe.base_serves}</Text>
-          </View>
-          <View style={styles.metaDot} />
-          <View style={styles.metaItem}>
-            <Ionicons name="list-outline" size={13} color={Colors.muted} />
-            <Text style={styles.metaText}>{recipe.steps.length} steps</Text>
-          </View>
-        </View>
+    <TouchableOpacity style={styles.recipeRow} onPress={onPress} activeOpacity={0.8}>
+      <View style={styles.recipeDot} />
+      <View style={styles.recipeInfo}>
+        <Text style={styles.recipeTitle}>{recipe.title}</Text>
+        <Text style={styles.recipeMeta}>
+          {recipe.tags.join(' · ')}
+        </Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={Colors.border} />
+      <Text style={styles.recipeDuration}>{recipe.duration_mins} min</Text>
     </TouchableOpacity>
   );
 }
@@ -58,37 +47,96 @@ function RecipeCard({ recipe, onPress }: { recipe: Recipe; onPress: () => void }
 export default function RecipeBrowserScreen({ route, navigation }: Props) {
   const { cookbookId } = route.params;
   const { getCookbook, getRecipesByCookbook } = useRecipeStore();
+  const { dietary } = useOnboardingStore();
+  const [activeFilter, setActiveFilter] = useState('All');
 
   const cookbook = getCookbook(cookbookId);
-  const recipes = getRecipesByCookbook(cookbookId);
+  const allRecipes = getRecipesByCookbook(cookbookId);
+
+  const filteredRecipes = useMemo(() => {
+    if (activeFilter === 'All') return allRecipes;
+    if (activeFilter === 'Under 30 min')
+      return allRecipes.filter((r) => r.duration_mins <= 30);
+    return allRecipes.filter((r) =>
+      r.tags.some((tag) => tag.toLowerCase().includes(activeFilter.toLowerCase()))
+    );
+  }, [allRecipes, activeFilter]);
+
+  // Count recipes matching user dietary preferences
+  const matchCount = useMemo(() => {
+    if (dietary.length === 0) return 0;
+    return allRecipes.filter((r) =>
+      r.tags.some((tag) =>
+        dietary.some((d) => tag.toLowerCase().includes(d.toLowerCase()))
+      )
+    ).length;
+  }, [allRecipes, dietary]);
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <TouchableOpacity
-        style={styles.backBtn}
-        onPress={() => navigation.goBack()}
-        activeOpacity={0.7}
-      >
-        <Ionicons name="arrow-back" size={22} color={Colors.text} />
-      </TouchableOpacity>
-
-      <View style={[styles.coverDot, { backgroundColor: cookbook?.accent_color ?? Colors.surface }]}>
-        <Text style={styles.coverInitial}>
-          {cookbook?.title.charAt(0).toUpperCase() ?? '?'}
-        </Text>
+      {/* Back button + title */}
+      <View style={styles.backRow}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={22} color={Colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.backLabel}>Your Library</Text>
       </View>
 
-      <Text style={styles.cookbookTitle}>{cookbook?.title ?? 'Cookbook'}</Text>
+      {/* Cookbook card */}
+      <View style={styles.cookbookCard}>
+        <View style={[styles.cookbookIcon, { backgroundColor: cookbook?.accent_color ?? Colors.surface }]}>
+          <Text style={styles.cookbookEmoji}>
+            {getCookbookEmoji(cookbook?.title ?? '')}
+          </Text>
+        </View>
+        <View style={styles.cookbookInfo}>
+          <Text style={styles.cookbookName}>{cookbook?.title ?? 'Cookbook'}</Text>
+          <Text style={styles.cookbookAuthor}>{cookbook?.author ?? ''}</Text>
+          <Text style={styles.cookbookStats}>
+            {allRecipes.length} recipes{matchCount > 0 ? ` · ${matchCount} match your filters` : ''}
+          </Text>
+        </View>
+      </View>
+
+      {/* Filter chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterScroll}
+        contentContainerStyle={styles.filterRow}
+      >
+        {FILTERS.map((filter) => {
+          const isActive = activeFilter === filter;
+          return (
+            <TouchableOpacity
+              key={filter}
+              style={[styles.filterChip, isActive && styles.filterChipActive]}
+              onPress={() => setActiveFilter(filter)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
+                {filter}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {/* Recipe count */}
       <Text style={styles.recipeCount}>
-        {recipes.length} {recipes.length === 1 ? 'recipe' : 'recipes'}
+        {filteredRecipes.length} RECIPES FOUND
       </Text>
 
-      {recipes.length === 0 && (
+      {allRecipes.length === 0 && (
         <View style={styles.emptyBox}>
           <Ionicons name="reader-outline" size={40} color={Colors.border} />
           <Text style={styles.emptyTitle}>No recipes found</Text>
           <Text style={styles.emptySub}>
-            This cookbook was uploaded but no recipes were extracted yet. Claude API integration coming next.
+            This cookbook was uploaded but no recipes were extracted yet.
           </Text>
         </View>
       )}
@@ -100,14 +148,14 @@ export default function RecipeBrowserScreen({ route, navigation }: Props) {
       <StatusBar barStyle="light-content" backgroundColor={Colors.bg} />
 
       <FlatList
-        data={recipes}
+        data={filteredRecipes}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={renderHeader}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         renderItem={({ item }) => (
-          <RecipeCard
+          <RecipeRow
             recipe={item}
             onPress={() =>
               navigation.navigate('IngredientChecklist', { recipeId: item.id })
@@ -129,40 +177,139 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxl,
   },
   header: {
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.xl,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
+  },
+  backRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+    gap: 4,
   },
   backBtn: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: -8,
+  },
+  backLabel: {
+    fontFamily: Fonts.body,
+    fontSize: 15,
+    color: Colors.muted,
+  },
+  cookbookCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    gap: Spacing.md,
     marginBottom: Spacing.lg,
   },
-  coverDot: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
+  cookbookIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.md,
   },
-  coverInitial: {
-    fontFamily: Fonts.heading,
-    fontSize: 32,
-    color: 'rgba(243,236,216,0.3)',
+  cookbookEmoji: {
+    fontSize: 26,
   },
-  cookbookTitle: {
-    fontFamily: Fonts.heading,
-    fontSize: 36,
+  cookbookInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  cookbookName: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 18,
     color: Colors.text,
-    lineHeight: 42,
-    marginBottom: 6,
+  },
+  cookbookAuthor: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: Colors.accent,
+  },
+  cookbookStats: {
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    color: Colors.muted,
+    marginTop: 2,
+  },
+  filterScroll: {
+    marginBottom: Spacing.md,
+    marginHorizontal: -Spacing.lg,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: Spacing.lg,
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: 'transparent',
+  },
+  filterChipActive: {
+    backgroundColor: Colors.text,
+    borderColor: Colors.text,
+  },
+  filterText: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: Colors.muted,
+  },
+  filterTextActive: {
+    color: Colors.bg,
+    fontFamily: Fonts.bodySemiBold,
   },
   recipeCount: {
     fontFamily: Fonts.body,
-    fontSize: 14,
+    fontSize: 11,
+    color: Colors.muted,
+    letterSpacing: 1.2,
+    marginBottom: Spacing.md,
+  },
+  recipeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    gap: Spacing.md,
+  },
+  recipeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.accent,
+    opacity: 0.6,
+  },
+  recipeInfo: {
+    flex: 1,
+    gap: 3,
+  },
+  recipeTitle: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 16,
+    color: Colors.text,
+  },
+  recipeMeta: {
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    color: Colors.muted,
+  },
+  recipeDuration: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
     color: Colors.muted,
   },
   emptyBox: {
@@ -181,74 +328,5 @@ const styles = StyleSheet.create({
     color: Colors.muted,
     textAlign: 'center',
     lineHeight: 22,
-  },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: 'hidden',
-    paddingRight: Spacing.md,
-  },
-  cardAccent: {
-    width: 4,
-    alignSelf: 'stretch',
-    backgroundColor: Colors.accent,
-  },
-  cardContent: {
-    flex: 1,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    gap: Spacing.sm,
-  },
-  cardTitle: {
-    fontFamily: Fonts.heading,
-    fontSize: 22,
-    color: Colors.text,
-    lineHeight: 26,
-  },
-  tagRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  tag: {
-    borderRadius: 50,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  tagText: {
-    fontFamily: Fonts.body,
-    fontSize: 11,
-    color: Colors.muted,
-    textTransform: 'lowercase',
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metaText: {
-    fontFamily: Fonts.body,
-    fontSize: 12,
-    color: Colors.muted,
-  },
-  metaDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: Colors.border,
-  },
-  separator: {
-    height: Spacing.sm,
   },
 });

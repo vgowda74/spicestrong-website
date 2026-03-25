@@ -19,9 +19,9 @@ import { useCookStore } from '../store/cookStore';
 type Props = NativeStackScreenProps<RootStackParamList, 'CookMode'>;
 
 function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+  const s = (seconds % 60).toString().padStart(2, '0');
+  return `${m} : ${s}`;
 }
 
 export default function CookModeScreen({ route, navigation }: Props) {
@@ -31,7 +31,6 @@ export default function CookModeScreen({ route, navigation }: Props) {
 
   const recipe = getRecipe(recipeId);
 
-  // Timer state
   const [timeLeft, setTimeLeft] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerDone, setTimerDone] = useState(false);
@@ -48,7 +47,7 @@ export default function CookModeScreen({ route, navigation }: Props) {
     setTimerDone(false);
   }, [stepIndex, recipeId]);
 
-  // Manage countdown interval
+  // Manage countdown
   useEffect(() => {
     if (timerRunning) {
       intervalRef.current = setInterval(() => {
@@ -84,7 +83,6 @@ export default function CookModeScreen({ route, navigation }: Props) {
   const isLastStep = stepIndex === totalSteps - 1;
   const hasTimer = !!currentStep.timer_seconds && currentStep.timer_seconds > 0;
   const timerTotal = currentStep.timer_seconds ?? 0;
-  const timerProgress = timerTotal > 0 ? (timerTotal - timeLeft) / timerTotal : 0;
 
   const handlePrev = () => {
     if (!isFirstStep) setStepIndex(stepIndex - 1);
@@ -98,24 +96,19 @@ export default function CookModeScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleExit = () => {
+  const handleEnd = () => {
     Alert.alert(
       'Leave cook mode?',
       'Your progress on this recipe will be lost.',
       [
         { text: 'Keep cooking', style: 'cancel' },
-        {
-          text: 'Exit',
-          style: 'destructive',
-          onPress: () => navigation.popToTop(),
-        },
+        { text: 'Exit', style: 'destructive', onPress: () => navigation.popToTop() },
       ]
     );
   };
 
   const toggleTimer = () => {
     if (timerDone) {
-      // Reset timer
       setTimeLeft(timerTotal);
       setTimerDone(false);
       setTimerRunning(false);
@@ -128,86 +121,73 @@ export default function CookModeScreen({ route, navigation }: Props) {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.bg} />
 
-      {/* Top progress bar */}
-      <View style={styles.progressTrack}>
-        <View
-          style={[
-            styles.progressFill,
-            { width: `${((stepIndex + 1) / totalSteps) * 100}%` as any },
-          ]}
-        />
-      </View>
-
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.exitBtn} onPress={handleExit} activeOpacity={0.7}>
-          <Ionicons name="close" size={22} color={Colors.muted} />
+      {/* Top header */}
+      <View style={styles.topHeader}>
+        <Text style={styles.stepLabel}>
+          STEP {stepIndex + 1} OF {totalSteps} · {recipe.title.toUpperCase()}
+        </Text>
+        <TouchableOpacity onPress={handleEnd} activeOpacity={0.7}>
+          <Text style={styles.endText}>End</Text>
         </TouchableOpacity>
-
-        <View style={styles.stepCounter}>
-          <Text style={styles.stepCounterText}>
-            Step {stepIndex + 1} of {totalSteps}
-          </Text>
-        </View>
-
-        <View style={styles.servesChip}>
-          <Ionicons name="people-outline" size={13} color={Colors.muted} />
-          <Text style={styles.servesText}>{serves}</Text>
-        </View>
       </View>
 
-      {/* Step content */}
       <ScrollView
         style={styles.scrollArea}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.stepNumber}>
-          {(stepIndex + 1).toString().padStart(2, '0')}
-        </Text>
-        <Text style={styles.stepText}>{currentStep.text}</Text>
-      </ScrollView>
+        {/* Step title */}
+        {currentStep.title && (
+          <Text style={styles.stepTitle}>{currentStep.title}</Text>
+        )}
 
-      {/* Timer section */}
-      {hasTimer && (
-        <View style={styles.timerSection}>
-          {/* Timer progress ring (simplified as bar) */}
-          <View style={styles.timerTrack}>
-            <View
-              style={[
-                styles.timerFill,
-                {
-                  width: `${timerProgress * 100}%` as any,
-                  backgroundColor: timerDone ? Colors.accent : Colors.muted,
-                },
-              ]}
-            />
-          </View>
-
-          <View style={styles.timerRow}>
-            <Text style={[styles.timerDisplay, timerDone && styles.timerDone]}>
-              {timerDone ? 'Done!' : formatTime(timeLeft)}
-            </Text>
-
-            <TouchableOpacity
-              style={[styles.timerBtn, timerDone && styles.timerBtnDone]}
-              onPress={toggleTimer}
-              activeOpacity={0.8}
-            >
-              {timerDone ? (
-                <Ionicons name="refresh" size={18} color={Colors.bg} />
-              ) : timerRunning ? (
-                <Ionicons name="pause" size={18} color={Colors.bg} />
-              ) : (
-                <Ionicons name="play" size={18} color={Colors.bg} />
-              )}
-              <Text style={styles.timerBtnText}>
-                {timerDone ? 'Reset' : timerRunning ? 'Pause' : 'Start timer'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+        {/* Instruction card */}
+        <View style={styles.instructionCard}>
+          <Text style={styles.stepNumberLabel}>STEP {stepIndex + 1}</Text>
+          <Text style={styles.instructionText}>{currentStep.text}</Text>
         </View>
-      )}
+
+        {/* Timer */}
+        {hasTimer && (
+          <View style={styles.timerCard}>
+            <View style={styles.timerRow}>
+              <Text style={[styles.timerDisplay, timerDone && styles.timerDisplayDone]}>
+                {timerDone ? '00 : 00' : formatTime(timeLeft)}
+              </Text>
+              <TouchableOpacity
+                style={[styles.timerBtn, timerDone && styles.timerBtnDone]}
+                onPress={toggleTimer}
+                activeOpacity={0.8}
+              >
+                {timerDone ? (
+                  <Ionicons name="refresh" size={22} color={Colors.bg} />
+                ) : timerRunning ? (
+                  <Ionicons name="pause" size={22} color={Colors.bg} />
+                ) : (
+                  <Ionicons name="play" size={22} color={Colors.bg} />
+                )}
+              </TouchableOpacity>
+            </View>
+            {currentStep.timer_label && (
+              <Text style={styles.timerLabel}>{currentStep.timer_label}</Text>
+            )}
+          </View>
+        )}
+
+        {/* Needed this step */}
+        {currentStep.needed_ingredients && currentStep.needed_ingredients.length > 0 && (
+          <View style={styles.neededSection}>
+            <Text style={styles.neededLabel}>NEEDED THIS STEP</Text>
+            <View style={styles.neededChips}>
+              {currentStep.needed_ingredients.map((item, idx) => (
+                <View key={idx} style={styles.neededChip}>
+                  <Text style={styles.neededChipText}>{item}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+      </ScrollView>
 
       {/* Navigation */}
       <View style={styles.navRow}>
@@ -217,23 +197,23 @@ export default function CookModeScreen({ route, navigation }: Props) {
           disabled={isFirstStep}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={20} color={isFirstStep ? Colors.border : Colors.text} />
-          <Text style={[styles.navBtnSecondaryText, isFirstStep && { color: Colors.border }]}>
-            Previous
+          <Ionicons name="arrow-back" size={18} color={isFirstStep ? Colors.border : Colors.text} />
+          <Text style={[styles.navSecondaryText, isFirstStep && { color: Colors.border }]}>
+            Prev
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.navBtnPrimary, isLastStep && styles.navBtnFinish]}
+          style={styles.navBtnPrimary}
           onPress={handleNext}
           activeOpacity={0.85}
         >
-          <Text style={styles.navBtnPrimaryText}>
+          <Text style={styles.navPrimaryText}>
             {isLastStep ? 'Finish' : 'Next step'}
           </Text>
           <Ionicons
             name={isLastStep ? 'checkmark' : 'arrow-forward'}
-            size={20}
+            size={18}
             color={Colors.bg}
           />
         </TouchableOpacity>
@@ -247,57 +227,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.bg,
   },
-  progressTrack: {
-    height: 3,
-    backgroundColor: Colors.border,
-    width: '100%',
-  },
-  progressFill: {
-    height: 3,
-    backgroundColor: Colors.accent,
-  },
-  header: {
+  topHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.sm,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  exitBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -8,
-  },
-  stepCounter: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
-  },
-  stepCounterText: {
+  stepLabel: {
     fontFamily: Fonts.body,
-    fontSize: 13,
+    fontSize: 11,
     color: Colors.muted,
+    letterSpacing: 1,
+    flex: 1,
   },
-  servesChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
-  },
-  servesText: {
+  endText: {
     fontFamily: Fonts.body,
-    fontSize: 13,
+    fontSize: 14,
     color: Colors.muted,
   },
   scrollArea: {
@@ -305,69 +253,102 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xl,
+    paddingTop: Spacing.lg,
     paddingBottom: Spacing.xl,
   },
-  stepNumber: {
-    fontFamily: Fonts.heading,
-    fontSize: 80,
-    color: Colors.border,
-    lineHeight: 88,
-    marginBottom: Spacing.sm,
-  },
-  stepText: {
-    fontFamily: Fonts.body,
-    fontSize: 20,
-    color: Colors.text,
-    lineHeight: 32,
-  },
-  timerSection: {
-    marginHorizontal: Spacing.lg,
+  stepTitle: {
+    fontFamily: Fonts.headingItalic,
+    fontSize: 24,
+    color: Colors.accent,
     marginBottom: Spacing.md,
+  },
+  instructionCard: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: Colors.border,
-    overflow: 'hidden',
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
   },
-  timerTrack: {
-    height: 3,
-    backgroundColor: Colors.border,
+  stepNumberLabel: {
+    fontFamily: Fonts.body,
+    fontSize: 11,
+    color: Colors.muted,
+    letterSpacing: 1.2,
+    marginBottom: Spacing.md,
   },
-  timerFill: {
-    height: 3,
+  instructionText: {
+    fontFamily: Fonts.body,
+    fontSize: 17,
+    color: Colors.text,
+    lineHeight: 28,
+  },
+  timerCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
   },
   timerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: Spacing.md,
   },
   timerDisplay: {
     fontFamily: Fonts.heading,
-    fontSize: 36,
+    fontSize: 48,
     color: Colors.text,
-    letterSpacing: 1,
+    letterSpacing: 2,
   },
-  timerDone: {
+  timerDisplayDone: {
     color: Colors.accent,
   },
   timerBtn: {
-    flexDirection: 'row',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.accent,
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.muted,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 50,
+    justifyContent: 'center',
   },
   timerBtnDone: {
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.muted,
   },
-  timerBtnText: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: 14,
-    color: Colors.bg,
+  timerLabel: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: Colors.muted,
+    marginTop: Spacing.sm,
+  },
+  neededSection: {
+    marginBottom: Spacing.lg,
+  },
+  neededLabel: {
+    fontFamily: Fonts.body,
+    fontSize: 11,
+    color: Colors.muted,
+    letterSpacing: 1.2,
+    marginBottom: Spacing.sm,
+  },
+  neededChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  neededChip: {
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  neededChipText: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: Colors.text,
   },
   navRow: {
     flexDirection: 'row',
@@ -382,7 +363,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingVertical: 14,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.lg,
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: Colors.border,
@@ -390,7 +371,7 @@ const styles = StyleSheet.create({
   navBtnDisabled: {
     opacity: 0.3,
   },
-  navBtnSecondaryText: {
+  navSecondaryText: {
     fontFamily: Fonts.body,
     fontSize: 15,
     color: Colors.text,
@@ -405,10 +386,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: Colors.accent,
   },
-  navBtnFinish: {
-    backgroundColor: Colors.accent,
-  },
-  navBtnPrimaryText: {
+  navPrimaryText: {
     fontFamily: Fonts.bodySemiBold,
     fontSize: 16,
     color: Colors.bg,

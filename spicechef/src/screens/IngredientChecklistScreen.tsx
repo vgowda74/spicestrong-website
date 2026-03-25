@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,18 +18,16 @@ import { useCookStore } from '../store/cookStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'IngredientChecklist'>;
 
+type TabName = 'Ingredients' | 'Shopping list' | 'Overview';
+
 function formatAmount(amount: number): string {
   if (amount === 0) return '';
   if (!isFinite(amount)) return '—';
-
-  // Round to nearest quarter
   const quarter = Math.round(amount * 4);
   const whole = Math.floor(quarter / 4);
   const rem = quarter % 4;
-
   const fracMap: Record<number, string> = { 1: '¼', 2: '½', 3: '¾' };
   const frac = fracMap[rem] ?? '';
-
   if (whole === 0 && frac) return frac;
   if (!frac) return whole.toString();
   return `${whole}${frac}`;
@@ -43,13 +41,15 @@ function scaleAmount(amount: number, baseServes: number, serves: number): string
 
 export default function IngredientChecklistScreen({ route, navigation }: Props) {
   const { recipeId } = route.params;
-  const { getRecipe } = useRecipeStore();
+  const { getRecipe, getCookbook } = useRecipeStore();
   const { serves: defaultServes } = useOnboardingStore();
   const { startSession } = useCookStore();
 
   const recipe = getRecipe(recipeId);
+  const cookbook = recipe ? getCookbook(recipe.cookbook_id) : undefined;
   const [serves, setServes] = useState(defaultServes);
   const [checked, setChecked] = useState<Set<number>>(new Set());
+  const [activeTab, setActiveTab] = useState<TabName>('Ingredients');
 
   if (!recipe) {
     return (
@@ -59,6 +59,17 @@ export default function IngredientChecklistScreen({ route, navigation }: Props) 
     );
   }
 
+  // Group ingredients by category
+  const groupedIngredients = useMemo(() => {
+    const groups: Record<string, { name: string; amount: number; unit: string; index: number }[]> = {};
+    recipe.ingredients.forEach((ing, idx) => {
+      const cat = ing.category || 'OTHER';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push({ ...ing, index: idx });
+    });
+    return groups;
+  }, [recipe.ingredients]);
+
   const toggleCheck = (index: number) => {
     setChecked((prev) => {
       const next = new Set(prev);
@@ -67,18 +78,12 @@ export default function IngredientChecklistScreen({ route, navigation }: Props) 
     });
   };
 
-  const checkAll = () => {
-    setChecked(new Set(recipe.ingredients.map((_, i) => i)));
-  };
-
   const handleStart = () => {
     startSession(recipe.id, serves);
     navigation.navigate('CookMode', { recipeId: recipe.id, serves });
   };
 
-  const checkedCount = checked.size;
-  const totalCount = recipe.ingredients.length;
-  const progressPct = totalCount > 0 ? checkedCount / totalCount : 0;
+  const tabs: TabName[] = ['Ingredients', 'Shopping list', 'Overview'];
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -91,14 +96,9 @@ export default function IngredientChecklistScreen({ route, navigation }: Props) 
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={22} color={Colors.text} />
+          <Ionicons name="chevron-back" size={22} color={Colors.accent} />
+          <Text style={styles.backLabel}>{cookbook?.title ?? 'Back'}</Text>
         </TouchableOpacity>
-
-        <View style={styles.headerRight}>
-          <TouchableOpacity onPress={checkAll} activeOpacity={0.7}>
-            <Text style={styles.checkAllText}>Check all</Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       <ScrollView
@@ -106,93 +106,121 @@ export default function IngredientChecklistScreen({ route, navigation }: Props) 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Title */}
-        <Text style={styles.label}>Ingredients</Text>
+        {/* Recipe title & meta */}
         <Text style={styles.recipeTitle}>{recipe.title}</Text>
-
-        {/* Serves adjuster */}
-        <View style={styles.servesRow}>
-          <Text style={styles.servesLabel}>Serves</Text>
-          <View style={styles.stepper}>
-            <TouchableOpacity
-              style={[styles.stepBtn, serves <= 1 && styles.stepBtnDisabled]}
-              onPress={() => serves > 1 && setServes(serves - 1)}
-              disabled={serves <= 1}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.stepBtnText}>−</Text>
-            </TouchableOpacity>
-            <Text style={styles.servesCount}>{serves}</Text>
-            <TouchableOpacity
-              style={[styles.stepBtn, serves >= 20 && styles.stepBtnDisabled]}
-              onPress={() => serves < 20 && setServes(serves + 1)}
-              disabled={serves >= 20}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.stepBtnText}>+</Text>
-            </TouchableOpacity>
+        <View style={styles.metaRow}>
+          <View style={styles.metaItem}>
+            <Ionicons name="time-outline" size={14} color={Colors.muted} />
+            <Text style={styles.metaText}>{recipe.duration_mins} min</Text>
           </View>
-          {serves !== recipe.base_serves && (
-            <Text style={styles.scaleNote}>
-              ×{(serves / recipe.base_serves).toFixed(2).replace(/\.?0+$/, '')}
-            </Text>
+          <Text style={styles.metaText}>Serves {serves}</Text>
+          {recipe.tags.length > 0 && (
+            <View style={styles.tagDot}>
+              <View style={styles.tagDotInner} />
+              <Text style={styles.tagText}>{recipe.tags[0]}</Text>
+            </View>
           )}
         </View>
 
-        {/* Progress bar */}
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${progressPct * 100}%` as any }]} />
-        </View>
-        <Text style={styles.progressText}>
-          {checkedCount} of {totalCount} checked
-        </Text>
-
-        {/* Ingredient list */}
-        <View style={styles.ingredientList}>
-          {recipe.ingredients.map((ing, idx) => {
-            const isChecked = checked.has(idx);
-            const scaled = scaleAmount(ing.amount, recipe.base_serves, serves);
-            const unitStr = ing.unit ? ` ${ing.unit}` : '';
-
+        {/* Tabs */}
+        <View style={styles.tabRow}>
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab;
             return (
               <TouchableOpacity
-                key={idx}
-                style={[styles.ingredientRow, isChecked && styles.ingredientRowChecked]}
-                onPress={() => toggleCheck(idx)}
-                activeOpacity={0.75}
+                key={tab}
+                style={[styles.tab, isActive && styles.tabActive]}
+                onPress={() => setActiveTab(tab)}
+                activeOpacity={0.7}
               >
-                {/* Checkbox */}
-                <View style={[styles.checkbox, isChecked && styles.checkboxChecked]}>
-                  {isChecked && (
-                    <Ionicons name="checkmark" size={13} color={Colors.bg} />
-                  )}
-                </View>
-
-                {/* Amount */}
-                {scaled !== '' && (
-                  <Text style={[styles.ingAmount, isChecked && styles.ingTextStrike]}>
-                    {scaled}{unitStr}
-                  </Text>
-                )}
-
-                {/* Name */}
-                <Text
-                  style={[styles.ingName, isChecked && styles.ingTextStrike]}
-                  numberOfLines={2}
-                >
-                  {ing.name}
+                <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+                  {tab}
                 </Text>
               </TouchableOpacity>
             );
           })}
         </View>
+
+        {activeTab === 'Ingredients' && (
+          <>
+            {/* Grouped ingredient list */}
+            {Object.entries(groupedIngredients).map(([category, items]) => (
+              <View key={category} style={styles.categoryGroup}>
+                <Text style={styles.categoryLabel}>{category}</Text>
+                {items.map((ing) => {
+                  const isChecked = checked.has(ing.index);
+                  const scaled = scaleAmount(ing.amount, recipe.base_serves, serves);
+                  const unitStr = ing.unit ? `${scaled}${ing.unit}` : scaled;
+
+                  return (
+                    <TouchableOpacity
+                      key={ing.index}
+                      style={[styles.ingredientRow, isChecked && styles.ingredientRowChecked]}
+                      onPress={() => toggleCheck(ing.index)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={[styles.checkbox, isChecked && styles.checkboxChecked]}>
+                        {isChecked && (
+                          <Ionicons name="checkmark" size={14} color={Colors.bg} />
+                        )}
+                      </View>
+                      <Text
+                        style={[styles.ingName, isChecked && styles.ingStrike]}
+                        numberOfLines={1}
+                      >
+                        {ing.name}
+                      </Text>
+                      {unitStr !== '' && (
+                        <Text style={[styles.ingAmount, isChecked && styles.ingStrike]}>
+                          {unitStr}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))}
+          </>
+        )}
+
+        {activeTab === 'Shopping list' && (
+          <View style={styles.placeholderTab}>
+            <Ionicons name="cart-outline" size={40} color={Colors.border} />
+            <Text style={styles.placeholderText}>
+              Shopping list will auto-generate from unchecked ingredients.
+            </Text>
+          </View>
+        )}
+
+        {activeTab === 'Overview' && (
+          <View style={styles.overviewTab}>
+            <Text style={styles.overviewLabel}>RECIPE OVERVIEW</Text>
+            <Text style={styles.overviewText}>
+              {recipe.steps.map((s) => s.title || `Step ${s.order}`).join(' → ')}
+            </Text>
+            <View style={styles.overviewStats}>
+              <View style={styles.overviewStat}>
+                <Text style={styles.overviewStatValue}>{recipe.steps.length}</Text>
+                <Text style={styles.overviewStatLabel}>Steps</Text>
+              </View>
+              <View style={styles.overviewStat}>
+                <Text style={styles.overviewStatValue}>{recipe.duration_mins}</Text>
+                <Text style={styles.overviewStatLabel}>Minutes</Text>
+              </View>
+              <View style={styles.overviewStat}>
+                <Text style={styles.overviewStatValue}>{recipe.ingredients.length}</Text>
+                <Text style={styles.overviewStatLabel}>Ingredients</Text>
+              </View>
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       {/* Bottom CTA */}
       <View style={styles.footer}>
         <TouchableOpacity style={styles.cta} onPress={handleStart} activeOpacity={0.85}>
+          <Ionicons name="checkmark" size={18} color={Colors.bg} />
           <Text style={styles.ctaText}>Start Cooking</Text>
-          <Ionicons name="arrow-forward" size={18} color={Colors.bg} />
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -205,24 +233,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bg,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
   },
   backBtn: {
-    width: 40,
-    height: 40,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -8,
+    gap: 4,
+    marginLeft: -4,
   },
-  headerRight: {},
-  checkAllText: {
+  backLabel: {
     fontFamily: Fonts.body,
-    fontSize: 14,
+    fontSize: 15,
     color: Colors.accent,
   },
   scroll: {
@@ -232,145 +255,181 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.xxl,
   },
-  label: {
-    fontFamily: Fonts.body,
-    fontSize: 11,
-    color: Colors.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 1.4,
-    marginBottom: 6,
-  },
   recipeTitle: {
     fontFamily: Fonts.heading,
     fontSize: 34,
     color: Colors.text,
     lineHeight: 40,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sm,
   },
-  servesRow: {
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
     marginBottom: Spacing.lg,
   },
-  servesLabel: {
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  metaText: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: Colors.muted,
+  },
+  tagDot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  tagDotInner: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.accent,
+  },
+  tagText: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: Colors.accent,
+  },
+  tabRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    marginBottom: Spacing.lg,
+  },
+  tab: {
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    marginRight: Spacing.lg,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabActive: {
+    borderBottomColor: Colors.accent,
+  },
+  tabText: {
     fontFamily: Fonts.body,
     fontSize: 14,
     color: Colors.muted,
-    flex: 1,
   },
-  stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  stepBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: Colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepBtnDisabled: {
-    borderColor: Colors.border,
-    opacity: 0.4,
-  },
-  stepBtnText: {
+  tabTextActive: {
     fontFamily: Fonts.bodySemiBold,
-    fontSize: 18,
-    color: Colors.accent,
-    lineHeight: 22,
-  },
-  servesCount: {
-    fontFamily: Fonts.heading,
-    fontSize: 28,
     color: Colors.text,
-    minWidth: 32,
-    textAlign: 'center',
   },
-  scaleNote: {
-    fontFamily: Fonts.body,
-    fontSize: 12,
-    color: Colors.accent,
-    backgroundColor: '#1E2E1E',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  progressBar: {
-    height: 3,
-    backgroundColor: Colors.border,
-    borderRadius: 2,
-    marginBottom: 8,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: Colors.accent,
-    borderRadius: 2,
-  },
-  progressText: {
-    fontFamily: Fonts.body,
-    fontSize: 12,
-    color: Colors.muted,
+  categoryGroup: {
     marginBottom: Spacing.lg,
   },
-  ingredientList: {
-    gap: 2,
+  categoryLabel: {
+    fontFamily: Fonts.body,
+    fontSize: 11,
+    color: Colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 1.4,
+    marginBottom: Spacing.sm,
   },
   ingredientRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.md,
+    alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: Spacing.md,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: 'transparent',
+    gap: Spacing.md,
+    marginBottom: 2,
   },
   ingredientRowChecked: {
     backgroundColor: Colors.surface,
     borderColor: Colors.border,
   },
   checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 24,
+    height: 24,
+    borderRadius: 6,
     borderWidth: 1.5,
     borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 1,
-    flexShrink: 0,
+    backgroundColor: 'transparent',
   },
   checkboxChecked: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
-  },
-  ingAmount: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: 15,
-    color: Colors.accent,
-    minWidth: 48,
+    backgroundColor: '#4A6B3A',
+    borderColor: '#4A6B3A',
   },
   ingName: {
     fontFamily: Fonts.body,
     fontSize: 15,
     color: Colors.text,
     flex: 1,
-    lineHeight: 22,
   },
-  ingTextStrike: {
+  ingAmount: {
+    fontFamily: Fonts.body,
+    fontSize: 14,
+    color: Colors.muted,
+  },
+  ingStrike: {
     color: Colors.muted,
     textDecorationLine: 'line-through',
+  },
+  placeholderTab: {
+    alignItems: 'center',
+    paddingTop: Spacing.xxl,
+    gap: Spacing.md,
+  },
+  placeholderText: {
+    fontFamily: Fonts.body,
+    fontSize: 14,
+    color: Colors.muted,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  overviewTab: {
+    gap: Spacing.lg,
+  },
+  overviewLabel: {
+    fontFamily: Fonts.body,
+    fontSize: 11,
+    color: Colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 1.4,
+  },
+  overviewText: {
+    fontFamily: Fonts.body,
+    fontSize: 15,
+    color: Colors.text,
+    lineHeight: 24,
+  },
+  overviewStats: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    justifyContent: 'space-around',
+  },
+  overviewStat: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  overviewStatValue: {
+    fontFamily: Fonts.heading,
+    fontSize: 28,
+    color: Colors.accent,
+  },
+  overviewStatLabel: {
+    fontFamily: Fonts.body,
+    fontSize: 11,
+    color: Colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   footer: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
   },
   cta: {
     backgroundColor: Colors.accent,

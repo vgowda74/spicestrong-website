@@ -9,61 +9,79 @@ import {
   StatusBar,
   Modal,
   ActivityIndicator,
-  Dimensions,
+  TextInput,
 } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../../App';
 import { Colors, Fonts, Spacing } from '../lib/theme';
 import { useRecipeStore, Cookbook } from '../store/recipeStore';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'HomeLibrary'>;
-
-const CARD_WIDTH = (Dimensions.get('window').width - Spacing.lg * 2 - Spacing.md) / 2;
+// Navigation prop can come from either the stack or the tab navigator
+type Props = {
+  navigation: any;
+};
 
 function getGreeting(): string {
   const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
+  if (hour < 12) return 'Good morning,';
+  if (hour < 17) return 'Good afternoon,';
+  return 'Good evening,';
 }
 
-function CookbookCard({
+// Simple emoji icons for cookbooks based on title
+function getCookbookEmoji(title: string): string {
+  const lower = title.toLowerCase();
+  if (lower.includes('indian') || lower.includes('spice')) return '🍛';
+  if (lower.includes('plenty') || lower.includes('vegetable') || lower.includes('veg')) return '🥬';
+  if (lower.includes('death') || lower.includes('cocktail') || lower.includes('drink')) return '🍸';
+  if (lower.includes('italian') || lower.includes('pasta')) return '🍝';
+  if (lower.includes('bread') || lower.includes('bak')) return '🍞';
+  if (lower.includes('dessert') || lower.includes('sweet')) return '🍰';
+  return '📖';
+}
+
+function CookbookRow({
   cookbook,
   onPress,
 }: {
   cookbook: Cookbook;
   onPress: () => void;
 }) {
-  const initials = cookbook.title
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .substring(0, 2)
-    .toUpperCase();
-
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
-      <View style={[styles.cardCover, { backgroundColor: cookbook.accent_color }]}>
-        <Text style={styles.cardInitials}>{initials}</Text>
+    <TouchableOpacity style={styles.cookbookRow} onPress={onPress} activeOpacity={0.8}>
+      <View style={[styles.cookbookIcon, { backgroundColor: cookbook.accent_color }]}>
+        <Text style={styles.cookbookEmoji}>{getCookbookEmoji(cookbook.title)}</Text>
       </View>
-      <View style={styles.cardBody}>
-        <Text style={styles.cardTitle} numberOfLines={2}>
-          {cookbook.title}
+      <View style={styles.cookbookInfo}>
+        <Text style={styles.cookbookTitle} numberOfLines={1}>{cookbook.title}</Text>
+        <Text style={styles.cookbookMeta}>
+          {cookbook.author} · {cookbook.recipe_count} recipes found
         </Text>
-        <Text style={styles.cardCount}>
-          {cookbook.recipe_count > 0 ? `${cookbook.recipe_count} recipes` : 'Processing…'}
-        </Text>
+      </View>
+      <View style={styles.countBadge}>
+        <Text style={styles.countBadgeText}>{cookbook.recipe_count}</Text>
       </View>
     </TouchableOpacity>
   );
 }
 
-export default function HomeLibraryScreen({ navigation }: Props) {
+export default function HomeLibraryScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { cookbooks, addCookbook } = useRecipeStore();
   const [processing, setProcessing] = useState(false);
   const [processingName, setProcessingName] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredCookbooks = searchQuery
+    ? cookbooks.filter(
+        (cb) =>
+          cb.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          cb.author.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : cookbooks;
 
   const handleUpload = async () => {
     try {
@@ -79,9 +97,9 @@ export default function HomeLibraryScreen({ navigation }: Props) {
       setProcessingName(title);
       setProcessing(true);
 
-      // Simulate Claude API parsing (will be replaced with real API call)
+      // Simulate Claude API parsing
       setTimeout(() => {
-        const cookbook = addCookbook(title, []);
+        const cookbook = addCookbook(title);
         setProcessing(false);
         navigation.navigate('RecipeBrowser', { cookbookId: cookbook.id });
       }, 3000);
@@ -94,35 +112,47 @@ export default function HomeLibraryScreen({ navigation }: Props) {
     <View>
       {/* Top bar */}
       <View style={styles.topBar}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.greeting}>{getGreeting()}</Text>
-          <Text style={styles.heading}>My Library</Text>
+          <Text style={styles.heading}>Your Library</Text>
         </View>
-        <View style={styles.avatar}>
-          <Ionicons name="person-outline" size={20} color={Colors.accent} />
-        </View>
+        <TouchableOpacity
+          style={styles.avatar}
+          onPress={() => {}}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.avatarText}>VK</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Stats */}
-      <Text style={styles.stats}>
-        {cookbooks.length} {cookbooks.length === 1 ? 'cookbook' : 'cookbooks'}
-      </Text>
+      {/* Search bar */}
+      <View style={styles.searchBar}>
+        <Ionicons name="search-outline" size={18} color={Colors.muted} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search your cookbooks..."
+          placeholderTextColor={Colors.muted}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </View>
 
       {/* Upload button */}
       <TouchableOpacity style={styles.uploadBtn} onPress={handleUpload} activeOpacity={0.75}>
         <View style={styles.uploadIcon}>
-          <Ionicons name="add" size={28} color={Colors.accent} />
+          <Ionicons name="arrow-up" size={22} color={Colors.accent} />
         </View>
         <View style={styles.uploadText}>
-          <Text style={styles.uploadLabel}>Add Cookbook</Text>
-          <Text style={styles.uploadSub}>Pick a PDF from your device</Text>
+          <Text style={styles.uploadLabel}>Upload a cookbook</Text>
+          <Text style={styles.uploadSub}>PDF · Any cuisine · Any language</Text>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={Colors.muted} />
       </TouchableOpacity>
 
       {/* Section label */}
-      {cookbooks.length > 0 && (
-        <Text style={styles.sectionLabel}>Your collection</Text>
+      {filteredCookbooks.length > 0 && (
+        <Text style={styles.sectionLabel}>
+          MY COOKBOOKS ({filteredCookbooks.length})
+        </Text>
       )}
     </View>
   );
@@ -142,16 +172,15 @@ export default function HomeLibraryScreen({ navigation }: Props) {
       <StatusBar barStyle="light-content" backgroundColor={Colors.bg} />
 
       <FlatList
-        data={cookbooks}
+        data={filteredCookbooks}
         keyExtractor={(item) => item.id}
-        numColumns={2}
-        columnWrapperStyle={styles.row}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         renderItem={({ item }) => (
-          <CookbookCard
+          <CookbookRow
             cookbook={item}
             onPress={() => navigation.navigate('RecipeBrowser', { cookbookId: item.id })}
           />
@@ -182,18 +211,18 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xxl,
+    paddingBottom: Spacing.xxl + 80, // extra space for tab bar
   },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginTop: Spacing.lg,
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.lg,
   },
   greeting: {
     fontFamily: Fonts.body,
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.muted,
     textTransform: 'uppercase',
     letterSpacing: 1.2,
@@ -201,35 +230,50 @@ const styles = StyleSheet.create({
   },
   heading: {
     fontFamily: Fonts.heading,
-    fontSize: 40,
+    fontSize: 38,
     color: Colors.text,
-    lineHeight: 46,
+    lineHeight: 44,
   },
   avatar: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
+    marginTop: 10,
   },
-  stats: {
-    fontFamily: Fonts.body,
-    fontSize: 13,
-    color: Colors.muted,
+  avatarText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 14,
+    color: Colors.bg,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
+    gap: 10,
     marginBottom: Spacing.lg,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: Fonts.body,
+    fontSize: 15,
+    color: Colors.text,
+    padding: 0,
   },
   uploadBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
     borderRadius: 14,
-    backgroundColor: Colors.surface,
+    backgroundColor: '#2A3B1E',
+    borderWidth: 1,
+    borderColor: '#3D5228',
     padding: Spacing.md,
     gap: Spacing.md,
     marginBottom: Spacing.xl,
@@ -238,7 +282,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#1E2E1E',
+    backgroundColor: Colors.surface,
     borderWidth: 1.5,
     borderColor: Colors.accent,
     alignItems: 'center',
@@ -249,7 +293,7 @@ const styles = StyleSheet.create({
   },
   uploadLabel: {
     fontFamily: Fonts.bodySemiBold,
-    fontSize: 15,
+    fontSize: 16,
     color: Colors.text,
     marginBottom: 2,
   },
@@ -266,42 +310,52 @@ const styles = StyleSheet.create({
     letterSpacing: 1.4,
     marginBottom: Spacing.md,
   },
-  row: {
-    gap: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  card: {
-    width: CARD_WIDTH,
+  cookbookRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: Colors.surface,
     borderRadius: 14,
-    overflow: 'hidden',
     borderWidth: 1,
     borderColor: Colors.border,
+    padding: Spacing.md,
+    gap: Spacing.md,
   },
-  cardCover: {
-    height: 120,
+  cookbookIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardInitials: {
-    fontFamily: Fonts.heading,
-    fontSize: 44,
-    color: 'rgba(243,236,216,0.25)',
+  cookbookEmoji: {
+    fontSize: 22,
   },
-  cardBody: {
-    padding: Spacing.md,
+  cookbookInfo: {
+    flex: 1,
+    gap: 3,
   },
-  cardTitle: {
+  cookbookTitle: {
     fontFamily: Fonts.bodySemiBold,
-    fontSize: 14,
+    fontSize: 16,
     color: Colors.text,
-    lineHeight: 20,
-    marginBottom: 4,
   },
-  cardCount: {
+  cookbookMeta: {
     fontFamily: Fonts.body,
     fontSize: 12,
     color: Colors.muted,
+  },
+  countBadge: {
+    backgroundColor: '#2A3B1E',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#3D5228',
+  },
+  countBadgeText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 13,
+    color: Colors.accent,
   },
   empty: {
     alignItems: 'center',

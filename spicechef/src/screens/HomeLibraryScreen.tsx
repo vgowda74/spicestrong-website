@@ -7,7 +7,6 @@ import {
   FlatList,
   SafeAreaView,
   StatusBar,
-  Modal,
   ActivityIndicator,
   TextInput,
   Alert,
@@ -19,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../../App';
 import { Colors, Fonts, Spacing } from '../lib/theme';
 import { useRecipeStore, Cookbook } from '../store/recipeStore';
-import { uploadAndParseCookbook, UploadProgress } from '../lib/cookbookService';
+import { uploadAndParseCookbook } from '../lib/cookbookService';
 
 // Navigation prop can come from either the stack or the tab navigator
 type Props = {
@@ -52,30 +51,44 @@ function CookbookRow({
   cookbook: Cookbook;
   onPress: () => void;
 }) {
+  const isParsing = cookbook.parsing;
+
   return (
-    <TouchableOpacity style={styles.cookbookRow} onPress={onPress} activeOpacity={0.8}>
+    <TouchableOpacity
+      style={[styles.cookbookRow, isParsing && styles.cookbookRowParsing]}
+      onPress={onPress}
+      activeOpacity={0.8}
+      disabled={isParsing}
+    >
       <View style={[styles.cookbookIcon, { backgroundColor: cookbook.accent_color }]}>
-        <Text style={styles.cookbookEmoji}>{getCookbookEmoji(cookbook.title)}</Text>
+        {isParsing ? (
+          <ActivityIndicator size="small" color={Colors.accent} />
+        ) : (
+          <Text style={styles.cookbookEmoji}>{getCookbookEmoji(cookbook.title)}</Text>
+        )}
       </View>
       <View style={styles.cookbookInfo}>
         <Text style={styles.cookbookTitle} numberOfLines={1}>{cookbook.title}</Text>
         <Text style={styles.cookbookMeta}>
-          {cookbook.author} · {cookbook.recipe_count} recipes found
+          {isParsing
+            ? 'Claude is reading your cookbook...'
+            : `${cookbook.author} · ${cookbook.recipe_count} recipes found`}
         </Text>
       </View>
-      <View style={styles.countBadge}>
-        <Text style={styles.countBadgeText}>{cookbook.recipe_count}</Text>
-      </View>
+      {isParsing ? (
+        <ActivityIndicator size="small" color={Colors.muted} />
+      ) : (
+        <View style={styles.countBadge}>
+          <Text style={styles.countBadgeText}>{cookbook.recipe_count}</Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
 
 export default function HomeLibraryScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { cookbooks, addCookbook, addParsedCookbook } = useRecipeStore();
-  const [processing, setProcessing] = useState(false);
-  const [processingName, setProcessingName] = useState('');
-  const [processingStage, setProcessingStage] = useState('');
+  const { cookbooks, addCookbook, addParsedCookbook, addParsingCookbook, finishParsingCookbook, failParsingCookbook } = useRecipeStore();
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredCookbooks = searchQuery
@@ -101,45 +114,38 @@ export default function HomeLibraryScreen() {
 
       const file = result.assets[0];
       const title = file.name.replace(/\.pdf$/i, '').replace(/_/g, ' ');
-      setProcessingName(title);
-      setProcessing(true);
 
       if (isSupabaseConfigured) {
-        // Real flow: Upload to Supabase → Claude parses → recipes saved
-        try {
-          const onProgress = (progress: UploadProgress) => {
-            setProcessingStage(progress.message);
-          };
+        // Add placeholder immediately and parse in background
+        const placeholder = addParsingCookbook(title);
 
-          const { cookbook, recipes } = await uploadAndParseCookbook(
-            file.uri,
-            file.name,
-            onProgress,
-          );
-
-          addParsedCookbook(cookbook, recipes);
-          setProcessing(false);
-          navigation.navigate('RecipeBrowser', { cookbookId: cookbook.id });
-        } catch (err: any) {
-          setProcessing(false);
-          console.error('Upload error:', err);
-          Alert.alert(
-            'Upload failed',
-            err.message || 'Something went wrong parsing the cookbook.',
-            [{ text: 'OK' }],
-          );
-        }
+        uploadAndParseCookbook(file.uri, file.name)
+          .then(({ cookbook, recipes }) => {
+            finishParsingCookbook(placeholder.id, cookbook, recipes);
+          })
+          .catch((err: any) => {
+            console.error('Upload error:', err);
+            failParsingCookbook(placeholder.id);
+            Alert.alert(
+              'Upload failed',
+              err.message || 'Something went wrong parsing the cookbook.',
+              [{ text: 'OK' }],
+            );
+          });
       } else {
         // Fallback: mock flow when Supabase is not configured
-        setProcessingStage('Simulating parse (Supabase not configured)...');
+        const placeholder = addParsingCookbook(title);
         setTimeout(() => {
-          const cookbook = addCookbook(title);
-          setProcessing(false);
-          navigation.navigate('RecipeBrowser', { cookbookId: cookbook.id });
+          const cookbook: Cookbook = {
+            ...placeholder,
+            parsing: false,
+            author: 'Unknown',
+          };
+          finishParsingCookbook(placeholder.id, cookbook, []);
         }, 2000);
       }
     } catch {
-      setProcessing(false);
+      // Document picker error — ignore
     }
   };
 
@@ -226,21 +232,6 @@ export default function HomeLibraryScreen() {
         )}
       />
 
-      {/* Processing modal */}
-      <Modal visible={processing} transparent animationType="fade">
-        <View style={styles.modalBg}>
-          <View style={styles.modalCard}>
-            <ActivityIndicator size="large" color={Colors.accent} />
-            <Text style={styles.modalTitle}>Parsing recipes…</Text>
-            <Text style={styles.modalSub} numberOfLines={2}>
-              {processingName}
-            </Text>
-            <Text style={styles.modalHint}>
-              {processingStage || 'Claude is reading your cookbook'}
-            </Text>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -361,6 +352,9 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     gap: Spacing.md,
   },
+  cookbookRowParsing: {
+    opacity: 0.7,
+  },
   cookbookIcon: {
     width: 48,
     height: 48,
@@ -423,37 +417,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
     paddingHorizontal: Spacing.xl,
-  },
-  modalBg: {
-    flex: 1,
-    backgroundColor: 'rgba(11,22,16,0.88)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 20,
-    padding: Spacing.xl,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    width: 280,
-    gap: Spacing.md,
-  },
-  modalTitle: {
-    fontFamily: Fonts.heading,
-    fontSize: 24,
-    color: Colors.text,
-  },
-  modalSub: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: 14,
-    color: Colors.accent,
-    textAlign: 'center',
-  },
-  modalHint: {
-    fontFamily: Fonts.body,
-    fontSize: 13,
-    color: Colors.muted,
   },
 });

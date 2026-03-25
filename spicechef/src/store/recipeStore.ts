@@ -34,6 +34,7 @@ export interface Cookbook {
   accent_color: string;
   recipe_count: number;
   created_at: string;
+  parsing?: boolean;
 }
 
 const ACCENT_PALETTE = ['#6B3A2A', '#2C4A3E', '#3D3228', '#1B3A4B', '#4A3728'];
@@ -261,6 +262,9 @@ interface RecipeState {
   getRecipe: (id: string) => Recipe | undefined;
   addCookbook: (title: string, author?: string, newRecipes?: Recipe[]) => Cookbook;
   addParsedCookbook: (cookbook: Cookbook, recipes: Recipe[]) => void;
+  addParsingCookbook: (title: string) => Cookbook;
+  finishParsingCookbook: (placeholderId: string, cookbook: Cookbook, recipes: Recipe[]) => void;
+  failParsingCookbook: (placeholderId: string) => void;
   updateCookbookRecipeCount: (id: string, count: number) => void;
 }
 
@@ -297,6 +301,41 @@ export const useRecipeStore = create<RecipeState>((set, get) => ({
     set((state) => ({
       cookbooks: [...state.cookbooks, cookbook],
       recipes: [...state.recipes, ...recipes],
+    }));
+  },
+
+  /** Add a placeholder cookbook while parsing is in progress */
+  addParsingCookbook: (title) => {
+    const id = `parsing_${Date.now()}`;
+    const cookbook: Cookbook = {
+      id,
+      title,
+      author: '',
+      accent_color: ACCENT_PALETTE[get().cookbooks.length % ACCENT_PALETTE.length],
+      recipe_count: 0,
+      created_at: new Date().toISOString().split('T')[0],
+      parsing: true,
+    };
+    set((state) => ({
+      cookbooks: [cookbook, ...state.cookbooks],
+    }));
+    return cookbook;
+  },
+
+  /** Replace the placeholder with the real parsed cookbook + recipes */
+  finishParsingCookbook: (placeholderId, cookbook, recipes) => {
+    set((state) => ({
+      cookbooks: state.cookbooks.map((cb) =>
+        cb.id === placeholderId ? { ...cookbook, parsing: false } : cb
+      ),
+      recipes: [...state.recipes, ...recipes],
+    }));
+  },
+
+  /** Remove the placeholder if parsing failed */
+  failParsingCookbook: (placeholderId) => {
+    set((state) => ({
+      cookbooks: state.cookbooks.filter((cb) => cb.id !== placeholderId),
     }));
   },
 

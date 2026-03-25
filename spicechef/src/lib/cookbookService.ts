@@ -1,4 +1,4 @@
-import { File } from 'expo-file-system/next';
+import { File } from 'expo-file-system';
 import { supabase } from './supabase';
 import { Cookbook, Recipe } from '../store/recipeStore';
 

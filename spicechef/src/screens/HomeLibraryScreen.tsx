@@ -212,7 +212,11 @@ export default function HomeLibraryScreen() {
         ListEmptyComponent={renderEmpty}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+        ItemSeparatorComponent={() => (
+          <View style={styles.separator}>
+            <View style={styles.separatorLine} />
+          </View>
+        )}
         renderItem={({ item }) => (
           <CookbookRow
             cookbook={item}
@@ -392,6 +396,14 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bodySemiBold,
     fontSize: 13,
     color: Colors.accent,
+  },
+  separator: {
+    paddingVertical: 4,
+    paddingHorizontal: Spacing.md,
+  },
+  separatorLine: {
+    height: 1,
+    backgroundColor: Colors.border,
   },
   empty: {
     alignItems: 'center',

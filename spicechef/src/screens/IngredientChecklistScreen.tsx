@@ -144,8 +144,14 @@ export default function IngredientChecklistScreen({ route, navigation }: Props) 
         {activeTab === 'Ingredients' && (
           <>
             {/* Grouped ingredient list */}
-            {Object.entries(groupedIngredients).map(([category, items]) => (
-              <View key={category} style={styles.categoryGroup}>
+            {Object.entries(groupedIngredients).map(([category, items], idx) => (
+              <View key={category}>
+                {idx > 0 && (
+                  <View style={styles.categorySeparator}>
+                    <View style={styles.categorySeparatorLine} />
+                  </View>
+                )}
+                <View style={styles.categoryGroup}>
                 <Text style={styles.categoryLabel}>{category}</Text>
                 {items.map((ing) => {
                   const isChecked = checked.has(ing.index);
@@ -178,6 +184,7 @@ export default function IngredientChecklistScreen({ route, navigation }: Props) 
                     </TouchableOpacity>
                   );
                 })}
+              </View>
               </View>
             ))}
           </>
@@ -318,6 +325,14 @@ const styles = StyleSheet.create({
   tabTextActive: {
     fontFamily: Fonts.bodySemiBold,
     color: Colors.text,
+  },
+  categorySeparator: {
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  categorySeparatorLine: {
+    height: 1,
+    backgroundColor: Colors.border,
   },
   categoryGroup: {
     marginBottom: Spacing.lg,

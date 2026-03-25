@@ -153,7 +153,11 @@ export default function RecipeBrowserScreen({ route, navigation }: Props) {
         ListHeaderComponent={renderHeader}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+        ItemSeparatorComponent={() => (
+          <View style={styles.separator}>
+            <View style={styles.separatorLine} />
+          </View>
+        )}
         renderItem={({ item }) => (
           <RecipeRow
             recipe={item}
@@ -311,6 +315,14 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.body,
     fontSize: 13,
     color: Colors.muted,
+  },
+  separator: {
+    paddingVertical: 4,
+    paddingHorizontal: Spacing.md,
+  },
+  separatorLine: {
+    height: 1,
+    backgroundColor: Colors.border,
   },
   emptyBox: {
     alignItems: 'center',

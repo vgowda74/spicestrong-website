@@ -10,6 +10,7 @@ import {
   Modal,
   ActivityIndicator,
   TextInput,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../../App';
 import { Colors, Fonts, Spacing } from '../lib/theme';
 import { useRecipeStore, Cookbook } from '../store/recipeStore';
+import { uploadAndParseCookbook, UploadProgress } from '../lib/cookbookService';
 
 // Navigation prop can come from either the stack or the tab navigator
 type Props = {
@@ -70,9 +72,10 @@ function CookbookRow({
 
 export default function HomeLibraryScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { cookbooks, addCookbook } = useRecipeStore();
+  const { cookbooks, addCookbook, addParsedCookbook } = useRecipeStore();
   const [processing, setProcessing] = useState(false);
   const [processingName, setProcessingName] = useState('');
+  const [processingStage, setProcessingStage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredCookbooks = searchQuery
@@ -83,11 +86,15 @@ export default function HomeLibraryScreen() {
       )
     : cookbooks;
 
+  const isSupabaseConfigured =
+    !!process.env.EXPO_PUBLIC_SUPABASE_URL &&
+    !!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
   const handleUpload = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: 'application/pdf',
-        copyToCacheDirectory: false,
+        copyToCacheDirectory: true, // need local copy for reading
       });
 
       if (result.canceled) return;
@@ -97,12 +104,39 @@ export default function HomeLibraryScreen() {
       setProcessingName(title);
       setProcessing(true);
 
-      // Simulate Claude API parsing
-      setTimeout(() => {
-        const cookbook = addCookbook(title);
-        setProcessing(false);
-        navigation.navigate('RecipeBrowser', { cookbookId: cookbook.id });
-      }, 3000);
+      if (isSupabaseConfigured) {
+        // Real flow: Upload to Supabase → Claude parses → recipes saved
+        try {
+          const onProgress = (progress: UploadProgress) => {
+            setProcessingStage(progress.message);
+          };
+
+          const { cookbook, recipes } = await uploadAndParseCookbook(
+            file.uri,
+            file.name,
+            onProgress,
+          );
+
+          addParsedCookbook(cookbook, recipes);
+          setProcessing(false);
+          navigation.navigate('RecipeBrowser', { cookbookId: cookbook.id });
+        } catch (err: any) {
+          setProcessing(false);
+          Alert.alert(
+            'Upload failed',
+            err.message || 'Something went wrong parsing the cookbook.',
+            [{ text: 'OK' }],
+          );
+        }
+      } else {
+        // Fallback: mock flow when Supabase is not configured
+        setProcessingStage('Simulating parse (Supabase not configured)...');
+        setTimeout(() => {
+          const cookbook = addCookbook(title);
+          setProcessing(false);
+          navigation.navigate('RecipeBrowser', { cookbookId: cookbook.id });
+        }, 2000);
+      }
     } catch {
       setProcessing(false);
     }
@@ -196,7 +230,9 @@ export default function HomeLibraryScreen() {
             <Text style={styles.modalSub} numberOfLines={2}>
               {processingName}
             </Text>
-            <Text style={styles.modalHint}>Claude is reading your cookbook</Text>
+            <Text style={styles.modalHint}>
+              {processingStage || 'Claude is reading your cookbook'}
+            </Text>
           </View>
         </View>
       </Modal>

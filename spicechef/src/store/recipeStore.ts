@@ -260,6 +260,8 @@ interface RecipeState {
   getRecipesByCookbook: (cookbookId: string) => Recipe[];
   getRecipe: (id: string) => Recipe | undefined;
   addCookbook: (title: string, author?: string, newRecipes?: Recipe[]) => Cookbook;
+  addParsedCookbook: (cookbook: Cookbook, recipes: Recipe[]) => void;
+  updateCookbookRecipeCount: (id: string, count: number) => void;
 }
 
 export const useRecipeStore = create<RecipeState>((set, get) => ({
@@ -288,5 +290,22 @@ export const useRecipeStore = create<RecipeState>((set, get) => ({
       recipes: [...state.recipes, ...newRecipes],
     }));
     return cookbook;
+  },
+
+  /** Add a cookbook + recipes returned from the Supabase Edge Function */
+  addParsedCookbook: (cookbook, recipes) => {
+    set((state) => ({
+      cookbooks: [...state.cookbooks, cookbook],
+      recipes: [...state.recipes, ...recipes],
+    }));
+  },
+
+  /** Update recipe_count after parsing completes */
+  updateCookbookRecipeCount: (id, count) => {
+    set((state) => ({
+      cookbooks: state.cookbooks.map((cb) =>
+        cb.id === id ? { ...cb, recipe_count: count } : cb
+      ),
+    }));
   },
 }));

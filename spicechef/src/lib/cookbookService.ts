@@ -40,9 +40,11 @@ export async function uploadAndParseCookbook(
     });
 
   if (uploadError) {
+    console.error('Storage upload error:', JSON.stringify(uploadError));
     notify('error', `Upload failed: ${uploadError.message}`);
     throw new Error(`Storage upload failed: ${uploadError.message}`);
   }
+  console.log('PDF uploaded to:', storagePath);
 
   // 2. Call Edge Function to parse with Claude
   notify('parsing', 'Claude is reading your cookbook...');
@@ -57,13 +59,18 @@ export async function uploadAndParseCookbook(
     },
   );
 
+  // Log full response for debugging
+  console.log('Edge function response:', JSON.stringify({ fnData, fnError }, null, 2));
+
   if (fnError) {
-    notify('error', `Parsing failed: ${fnError.message}`);
-    throw new Error(`Edge function failed: ${fnError.message}`);
+    // Try to extract detailed error from the response data
+    const detail = fnData?.error || fnData?.details || fnError.message;
+    notify('error', `Parsing failed: ${detail}`);
+    throw new Error(`Edge function failed: ${detail}`);
   }
 
   if (!fnData?.cookbook || !fnData?.recipes) {
-    const detail = fnData?.error || 'Unknown error';
+    const detail = fnData?.error || fnData?.details || JSON.stringify(fnData) || 'Unknown error';
     notify('error', `Parsing failed: ${detail}`);
     throw new Error(`Parse failed: ${detail}`);
   }

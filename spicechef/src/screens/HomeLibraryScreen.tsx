@@ -122,6 +122,7 @@ export default function HomeLibraryScreen() {
           navigation.navigate('RecipeBrowser', { cookbookId: cookbook.id });
         } catch (err: any) {
           setProcessing(false);
+          console.error('Upload error:', err);
           Alert.alert(
             'Upload failed',
             err.message || 'Something went wrong parsing the cookbook.',

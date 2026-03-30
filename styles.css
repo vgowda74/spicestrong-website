@@ -633,63 +633,12 @@ button { font-family: inherit; }
   position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
   background: linear-gradient(90deg, transparent, var(--border), transparent);
 }
-/* Protein groups: side-by-side */
-.protein-groups {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 32px;
-  max-width: 1100px;
-  margin: 0 auto;
-}
-.protein-group {
-  background: rgba(255,255,255,0.02);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg, 16px);
-  padding: 28px 24px 24px;
-}
-.protein-group-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 2px solid var(--border);
-}
-.protein-group-header.nonveg {
-  border-bottom-color: var(--primary);
-}
-.protein-group-header.veg {
-  border-bottom-color: var(--green);
-}
-.protein-group-icon {
-  font-size: 24px;
-}
-.protein-group-title {
-  font-size: 20px;
-  font-weight: 800;
-  color: #fff;
-  margin: 0;
-  letter-spacing: -0.02em;
-}
-.protein-group-header.nonveg .protein-group-title {
-  color: var(--primary-light, #FF7A45);
-}
-.protein-group-header.veg .protein-group-title {
-  color: var(--green, #4CAF50);
-}
-.protein-group-count {
-  font-size: 12px;
-  color: var(--text-secondary);
-  font-weight: 500;
-  margin-left: auto;
-  background: rgba(255,255,255,0.05);
-  padding: 4px 10px;
-  border-radius: 20px;
-}
 .protein-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 14px;
+  max-width: 1100px;
+  margin: 0 auto;
 }
 .protein-card {
   background: var(--bg-card);
@@ -1030,22 +979,37 @@ blockquote {
   .screenshot-track::-webkit-scrollbar { display: none; }
   .phone-frame-sm { width: 190px; height: 380px; }
 
-  .protein-groups {
-    grid-template-columns: 1fr;
-    gap: 24px;
-  }
-  .protein-group {
-    padding: 20px 16px 16px;
-  }
   .protein-grid {
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
   }
-  .protein-card { padding: 20px 14px 18px; }
-  .protein-group-title { font-size: 18px; }
 
-  .proof-content { flex-direction: column; gap: 40px; }
-  .cta-content { padding: 60px 30px; }
-  .cta-buttons { flex-direction: column; align-items: center; }
-  .footer-top { flex-direction: column; gap: 32px; }
+  .proof-highlights {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .highlight { flex: 1; min-width: 140px; }
+
+  .cta-content { padding: 48px 24px; }
+  .cta-content h2 { font-size: 30px; }
+
+  .footer-top {
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-title { font-size: 36px; }
+  .hero-stats { padding: 16px 20px; gap: 16px; }
+  .stat-number { font-size: 22px; }
+  .phone-frame { width: 200px; height: 400px; }
+  .phone-frame-sm { width: 160px; height: 320px; }
+  .protein-grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+  .proof-highlights { flex-direction: column; }
+  .highlight { min-width: auto; }
+  .footer-top { grid-template-columns: 1fr; }
+  .btn-primary, .btn-secondary { padding: 12px 22px; font-size: 14px; }
+  .btn-lg { padding: 14px 26px; font-size: 15px; }
+  blockquote { font-size: 18px; }
 }

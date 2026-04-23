@@ -65,20 +65,90 @@
       transition: opacity 0.2s;
     }
     .privacy-back:hover { opacity: 0.8; }
-    .contact-card {
-      background: rgba(232, 93, 38, 0.1);
-      border: 1px solid rgba(232, 93, 38, 0.3);
+    .contact-form {
+      background: rgba(232, 93, 38, 0.08);
+      border: 1px solid rgba(232, 93, 38, 0.25);
       border-radius: 16px;
       padding: 32px;
       margin: 24px 0;
     }
-    .contact-card a {
-      color: var(--primary);
-      font-weight: 600;
+    .contact-form label {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.60);
+      margin-bottom: 6px;
+      margin-top: 16px;
+      letter-spacing: 0.5px;
+    }
+    .contact-form label:first-child { margin-top: 0; }
+    .contact-form input,
+    .contact-form select,
+    .contact-form textarea {
+      width: 100%;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      padding: 12px 14px;
+      color: #fff;
+      font-size: 15px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color 0.2s;
+      box-sizing: border-box;
+    }
+    .contact-form input:focus,
+    .contact-form select:focus,
+    .contact-form textarea:focus {
+      border-color: var(--primary);
+    }
+    .contact-form textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+    .contact-form select {
+      appearance: none;
+      cursor: pointer;
+    }
+    .contact-form select option {
+      background: #1a1a1a;
+      color: #fff;
+    }
+    .contact-form button {
+      margin-top: 20px;
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(90deg, #F07030, #C84A10);
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      font-family: 'Inter', sans-serif;
+    }
+    .contact-form button:hover { opacity: 0.9; }
+    .form-success {
+      display: none;
+      text-align: center;
+      padding: 40px 20px;
+    }
+    .form-success.show {
+      display: block;
+    }
+    .form-success h3 {
+      color: #22C55E;
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    .form-success p {
+      color: rgba(255,255,255,0.60);
     }
     @media (max-width: 768px) {
       .privacy-page { padding: 100px 20px 60px; }
       .privacy-page h1 { font-size: 32px; }
+      .contact-form { padding: 20px; }
     }
   </style>
 </head>
@@ -99,9 +169,37 @@
     <span class="updated">We're here to help</span>
 
     <h2>Contact Us</h2>
-    <div class="contact-card">
-      <p><strong>Email:</strong> <a href="mailto:support@spicestrong.app">support@spicestrong.app</a></p>
-      <p>We typically respond within 24 hours.</p>
+    <div class="contact-form" id="contactForm">
+      <form action="https://formspree.io/f/xpwzvkgn" method="POST" id="supportForm">
+        <input type="hidden" name="_subject" value="SpiceStrong Support Request">
+        <input type="hidden" name="_next" value="https://www.spicestrong.app/support.html#thanks">
+
+        <label for="name">Your Name</label>
+        <input type="text" id="name" name="name" placeholder="John" required>
+
+        <label for="email">Your Email</label>
+        <input type="email" id="email" name="email" placeholder="john@example.com" required>
+
+        <label for="topic">Topic</label>
+        <select id="topic" name="topic" required>
+          <option value="" disabled selected>Select a topic</option>
+          <option value="Bug Report">Bug Report</option>
+          <option value="Feature Request">Feature Request</option>
+          <option value="Subscription Issue">Subscription / Billing</option>
+          <option value="Recipe Issue">Recipe Issue</option>
+          <option value="Account / Data">Account / Data</option>
+          <option value="Other">Other</option>
+        </select>
+
+        <label for="message">Message</label>
+        <textarea id="message" name="message" placeholder="Describe your issue or suggestion..." required></textarea>
+
+        <button type="submit">Send Message</button>
+      </form>
+      <div class="form-success" id="formSuccess">
+        <h3>✓ Message Sent!</h3>
+        <p>Thank you for reaching out. We typically respond within 24 hours.</p>
+      </div>
     </div>
 
     <h2>Frequently Asked Questions</h2>
@@ -127,12 +225,38 @@
     <h3 style="color: #fff; font-size: 18px; margin-top: 28px; margin-bottom: 8px;">Is my data private?</h3>
     <p>Yes. SpiceStrong does not require login. Your recipes, pantry, and fitness data are stored locally on your device. We do not sell or share personal data. See our <a href="privacy.html" style="color: var(--primary);">Privacy Policy</a> for details.</p>
 
-    <h2>Report a Bug</h2>
-    <p>Found something that doesn't work right? Email us at <a href="mailto:support@spicestrong.app" style="color: var(--primary);">support@spicestrong.app</a> with a description of the issue and a screenshot if possible. We'll fix it as quickly as we can.</p>
-
     <h2>Feature Requests</h2>
-    <p>Have an idea for SpiceStrong? We'd love to hear it. Send your suggestions to <a href="mailto:support@spicestrong.app" style="color: var(--primary);">support@spicestrong.app</a> — many of our best features came from user feedback.</p>
+    <p>Have an idea for SpiceStrong? Use the contact form above — many of our best features came from user feedback.</p>
   </div>
+
+  <script>
+    // Handle form success (Formspree redirects back with #thanks)
+    if (window.location.hash === '#thanks') {
+      document.getElementById('supportForm').style.display = 'none';
+      document.getElementById('formSuccess').classList.add('show');
+    }
+
+    // Also handle via fetch for no-redirect experience
+    const form = document.getElementById('supportForm');
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const data = new FormData(form);
+      fetch(form.action, {
+        method: 'POST',
+        body: data,
+        headers: { 'Accept': 'application/json' }
+      }).then(res => {
+        if (res.ok) {
+          form.style.display = 'none';
+          document.getElementById('formSuccess').classList.add('show');
+        } else {
+          alert('Something went wrong. Please try again.');
+        }
+      }).catch(() => {
+        alert('Could not send message. Please check your internet connection.');
+      });
+    });
+  </script>
 
 </body>
 </html>

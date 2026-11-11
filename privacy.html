@@ -114,16 +114,16 @@
       Back to home
     </a>
     <h1>Privacy Policy</h1>
-    <span class="updated">Last updated: March 13, 2026</span>
+    <span class="updated">Last updated: November 11, 2026</span>
 
     <h2>Overview</h2>
     <p>SpiceStrong is a high-protein recipe discovery app. Your privacy is important to us. This policy explains how we handle your information when you use our app.</p>
 
     <h2>Data Collection</h2>
-    <p>SpiceStrong does not require account creation or login. We do not collect personal information such as your name, email address, phone number, or location.</p>
+    <p>SpiceStrong uses Apple or Google sign-in through Supabase. Account information may include a provider identifier, email address (including an Apple relay address), and a name when supplied by the provider. Feature-specific data is processed when you choose to use a feature, including the body-scan processing described below.</p>
 
     <h2>AI Recipe Generation</h2>
-    <p>When you use the AI Recipe Builder feature, your selected preferences (protein type, dietary options, and cuisine choice) are sent to Anthropic's Claude API to generate recipes. No personal data is included in these requests. The data sent consists only of:</p>
+    <p>When you use the AI Recipe Builder, your selected preferences and recipe instructions are sent to Anthropic's Claude API. These may include:</p>
     <ul>
       <li>Selected protein type (e.g., chicken, tofu)</li>
       <li>Dietary preferences (e.g., low carb, gluten free)</li>
@@ -131,25 +131,31 @@
     </ul>
 
     <h2>Local Storage</h2>
-    <p>Your saved recipes, preferences, and app settings are stored locally on your device using on-device storage. This data is not transmitted to any server and remains entirely under your control.</p>
+    <p>The app keeps local recipes, preferences, fitness information, and app settings on your device. Some services also store data such as meal-plan records, shared recipes, ratings, and account information. Signing in does not currently provide a complete cloud backup of your device data.</p>
+
+    <h2>Body-Scan and Progress Photos</h2>
+    <p>SpiceStrong does not save body-scan or progress photos in its database or cloud storage. Captured or selected images are held on your device and local files may be temporary. Device and photo-library backups are controlled by your device settings.</p>
+    <p>Before using AI body scan, you must separately accept its photo-processing disclosure. If you decline, the scan cannot proceed. When you tap Analyze, copies of your front and side photos, together with available age, gender, height, and weight, are transmitted over HTTPS through our backend to Anthropic for analysis. Photos therefore leave your device for processing. Numerical estimates may be saved in your local fitness profile.</p>
+    <p>Under <a href="https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data">Anthropic's standard API retention policy</a>, inputs and outputs are deleted within 30 days, except where longer retention is needed for matters such as legal obligations or enforcing usage policies. We have not confirmed a zero-data-retention agreement for this account and do not guarantee immediate deletion by the provider. Progress photos are not sent for AI analysis by the progress-photo feature.</p>
 
     <h2>Third-Party Services</h2>
     <p>We use the following third-party service:</p>
     <ul>
-      <li><strong>Anthropic Claude API</strong> - Used solely for AI recipe generation. No personal data is shared. Only recipe preferences are transmitted to generate custom recipes.</li>
+      <li><strong>Anthropic Claude API</strong> - Processes selected AI requests, including recipes and body-scan photos and profile measurements when you consent to and request that analysis. See the photo-processing and retention disclosure above.</li>
+      <li><strong>Supabase</strong> - Provides authentication, backend processing, and storage for supported app data. Body-scan and progress photos are not written to our database or cloud photo storage.</li>
     </ul>
 
     <h2>Analytics and Tracking</h2>
-    <p>SpiceStrong does not use any analytics, tracking, or advertising services. We do not track your usage patterns, browsing behavior, or any other activity within the app.</p>
+    <p>SpiceStrong uses app-event analytics, including Firebase Analytics and backend event records, to understand feature use and reliability. The body-scan flow records events such as completion and confidence; it does not include the photo files in those event records.</p>
 
     <h2>Children's Privacy</h2>
     <p>SpiceStrong is not directed at children under the age of 13. We do not knowingly collect any information from children.</p>
 
     <h2>Data Security</h2>
-    <p>Since we do not collect or store personal data on our servers, there is minimal risk of data breach. All user data remains on your device.</p>
+    <p>Network requests for AI analysis use HTTPS. We do not save body-scan or progress photos to our database or cloud storage. Other account and service data is handled by the relevant providers. No system can guarantee absolute security.</p>
 
     <h2>Your Rights</h2>
-    <p>Since we do not collect personal data, there is no personal data to access, modify, or delete from our systems. You can clear all locally stored data by uninstalling the app.</p>
+    <p>Contact us through the Support page about account data, privacy requests, or provider retention questions. Local files and device or photo-library backups are managed through the relevant app and device settings. Deleting local data does not itself delete information already processed or stored by a third-party provider.</p>
 
     <h2>Changes to This Policy</h2>
     <p>We may update this privacy policy from time to time. Any changes will be reflected on this page with an updated date. We encourage you to review this policy periodically.</p>

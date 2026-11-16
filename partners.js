@@ -3,6 +3,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.99.1';
 const root = document.querySelector('#portal');
 const notice = document.querySelector('#notice');
 const config = window.SPICESTRONG_PARTNERS;
+const route = location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '');
+const adminRoute = route === '/admin';
 let client, session, admin = false, selectedPartner = null;
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = value => value == null ? 'Awaiting proceeds' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
@@ -39,10 +41,10 @@ const rules = `<h2>How rewards work</h2><ul>
 <li>Pending amounts are USD estimates. Eligible earnings require verified store proceeds. Payouts are processed separately through PayPal.</li>
 </ul>`;
 function login() {
-  return `<section class="partner-card"><h2>Sign in</h2><p>Approved partners and administrators can request a secure email link.</p>
+  return `<section class="partner-card"><h2>${adminRoute ? 'Administrator sign-in' : 'Partner sign-in'}</h2><p>${adminRoute ? 'Only registered administrators can access partner applications, approvals and payment administration.' : 'Approved promotion partners can request a secure email link to their own dashboard.'}</p>
   <form id="login">${field('email', 'Email address', 'email', '', 'autocomplete="email" maxlength="254"')}<button type="submit">Email me a sign-in link</button></form></section>`;
 }
-function bindLogin() { bindForm('login', async values => notify((await api('login', values)).message)); }
+function bindLogin() { bindForm('login', async values => notify((await api('login', { ...values, portal: adminRoute ? 'admin' : 'partner' })).message)); }
 function application() {
   root.innerHTML = `<h1>Refer &amp; earn with SpiceStrong</h1><p>Help your audience cook high-protein meals and earn rewards on qualifying subscriptions.</p>
   <div class="partner-grid"><section class="partner-card"><h2>Become a promotion partner</h2><form id="apply">
@@ -174,6 +176,12 @@ async function adminDashboard(partnerId) {
   });
 }
 async function start() {
+  if (adminRoute) {
+    document.title = 'Partner Administration · SpiceStrong';
+    document.getElementById('dashboard-link').href = '/admin';
+    document.getElementById('dashboard-link').textContent = 'Partner administration';
+    document.getElementById('refer-link').hidden = true;
+  }
   if (!config?.url || !config?.anonKey) throw Error('Partner portal is awaiting server configuration. Please contact support.');
   client = createClient(config.url, config.anonKey, { auth: { storageKey: 'spicestrong-partner-auth', detectSessionInUrl: false, flowType: 'pkce' } });
   const fragment = new URLSearchParams(location.hash.slice(1));
@@ -183,12 +191,12 @@ async function start() {
     const type = fragment.get('type');
     if (!['magiclink', 'signup', 'invite'].includes(type)) throw Error('Invalid sign-in link. Request a new link.');
     // An explicit click prevents email-link scanners from consuming the token.
-    root.innerHTML = `<h1>Your secure sign-in link</h1><section class="partner-card"><p>Continue to open your SpiceStrong partner dashboard.</p><button id="continue">Continue to dashboard</button></section>${login()}`;
+    root.innerHTML = `<h1>${adminRoute ? 'Secure administrator sign-in' : 'Your secure partner sign-in link'}</h1><section class="partner-card"><p>${adminRoute ? 'Continue to review partner applications and manage the promotion program.' : 'Continue to open your SpiceStrong partner dashboard.'}</p><button id="continue">${adminRoute ? 'Continue to administration' : 'Continue to partner dashboard'}</button></section>${login()}`;
     bindLogin(); root.setAttribute('aria-busy', 'false');
     document.getElementById('continue').onclick = event => working(event.currentTarget, async () => {
       const result = await client.auth.verifyOtp({ token_hash: token, type });
       if (result.error) throw Error('This sign-in link has expired or was already used. Request a new one below.');
-      location.assign('/partner');
+      location.assign(adminRoute ? '/admin' : '/partner');
     });
     return;
   }
@@ -199,17 +207,19 @@ async function start() {
   document.getElementById('signout').onclick = async event => working(event.currentTarget, async () => {
     const result = await client.auth.signOut({ scope: 'local' });
     if (result.error) throw result.error;
-    root.replaceChildren(); location.assign('/partner');
+    root.replaceChildren(); location.assign(adminRoute ? '/admin' : '/partner');
   });
   if (session) {
     admin = (await api('access')).admin;
-    document.getElementById('admin-link').hidden = !admin;
+    document.getElementById('admin-link').hidden = !admin || adminRoute;
   }
-  const route = location.pathname.replace(/\/$/, '');
   if (route === '/partners' || route === '/partners.html') application();
   else if (!session) { root.innerHTML = `<h1>${route === '/admin' ? 'Partner administration' : 'Partner dashboard'}</h1>${login()}`; bindLogin(); }
   else if (route === '/admin' && !admin) { root.innerHTML = '<h1>Administrator access required</h1><p>This account is not an administrator.</p>'; }
-  else if (admin) await adminList();
+  else if (admin) {
+    if (!adminRoute) { location.replace('/admin'); return; }
+    await adminList();
+  }
   else await partnerDashboard();
   root.setAttribute('aria-busy', 'false');
 }

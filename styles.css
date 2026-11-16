@@ -1013,3 +1013,10 @@ blockquote {
   .btn-lg { padding: 14px 26px; font-size: 15px; }
   blockquote { font-size: 18px; }
 }
+
+/* Preserve the complete App Store screen at every breakpoint. */
+.phone-frame, .phone-frame-sm {
+  height: auto;
+  aspect-ratio: 1290 / 2796;
+}
+.phone-screen { object-fit: contain; }

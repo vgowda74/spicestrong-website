@@ -223,4 +223,4 @@ async function start() {
   else await partnerDashboard();
   root.setAttribute('aria-busy', 'false');
 }
-start().catch(error => { root.innerHTML = `<h1>Partner portal</h1><p>${escape(error.message)}</p><a class="partner-action" href="/partner">Try again</a>`; root.setAttribute('aria-busy', 'false'); });
+start().catch(error => { root.innerHTML = `<h1>${adminRoute ? 'Partner administration' : 'Partner portal'}</h1><p>${escape(error.message)}</p><a class="partner-action" href="${adminRoute ? '/admin' : '/partner'}">Try again</a>`; root.setAttribute('aria-busy', 'false'); });

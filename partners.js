@@ -63,8 +63,11 @@ function offerCards(offers, partner, claimed) {
     return `<section class="partner-card"><h2>${kind === 'free_month' ? 'First 100 · one month free' : '50% off the first month'}</h2>
       <p>${kind === 'free_month' ? 'Share this code with your audience. The first 100 eligible people to claim the configured store offer get one month free, then regular monthly pricing.' : 'Share this code with your audience. Eligible new monthly subscribers get 50% off their first month, then regular monthly pricing.'}</p>
       ${entries.length && kind === 'free_month' ? `<code class="partner-code">${escape(partner.free_code)}</code><button data-copy="${escape(partner.free_code)}">Copy free-month code</button>
-      <p>${escape(claimed)} of 100 places claimed across both stores.</p><p>New subscribers enter this code in the app’s monthly upgrade screen to reserve a place and receive a personal store code. Available for ${entries.map(o => o.store === 'APP_STORE' ? 'App Store' : 'Google Play').join(' and ')}.</p>` : entries.length ? entries.map(offer => `<h3>${offer.store === 'APP_STORE' ? 'App Store' : 'Google Play'}</h3><code class="partner-code">${escape(offer.code)}</code>
-      <button data-copy="${escape(offer.code)}">Copy code</button><a class="partner-action" href="${escape(offer.redemption_url)}" target="_blank" rel="noopener noreferrer">Redeem in store</a>`).join('') : '<p class="partner-status">Store offer awaiting configuration</p><p>The code will appear here after the offer is configured and activated in the store.</p>'}</section>`;
+      <button data-copy="${escape(location.origin + '/redeem?code=' + encodeURIComponent(partner.free_code))}">Copy free-month claim link</button>
+      <p>${escape(claimed)} of 100 places claimed across both stores.</p><p>Share the claim link to reserve a place and receive a personal store redemption. This campaign code is entered in SpiceStrong, not directly in the App Store. Available for ${entries.map(o => o.store === 'APP_STORE' ? 'App Store' : 'Google Play').join(' and ')}.</p>` : entries.length ? `<code class="partner-code">${escape(partner.half_code)}</code>
+      <button data-copy="${escape(partner.half_code)}">Copy 50%-off code</button><p>Available for ${entries.map(o => o.store === 'APP_STORE' ? 'App Store' : 'Google Play').join(' and ')}.</p>
+      ${entries.filter(o => o.store === 'APP_STORE').map(offer => `<a class="partner-action" href="${escape(offer.redemption_url)}" target="_blank" rel="noopener noreferrer">Redeem on App Store</a>`).join('')}
+      ${entries.some(o => o.store === 'PLAY_STORE') ? '<p>Android subscribers enter this code in SpiceStrong before monthly checkout. The updated app must support partner offer entry.</p>' : ''}` : '<p class="partner-status">Store offer setup pending</p><p>Your code will appear here automatically after store setup completes.</p>'}</section>`;
   }).join('')}</div>`;
 }
 function earningsTable(earnings, administrative = false) {
@@ -82,11 +85,12 @@ function dashboardMarkup(result, administrative = false) {
     ['Referred subscribers', summary.referred_subscribers], ['Pending earnings · estimated', money(summary.pending_usd)],
     ['Eligible earnings', money(summary.eligible_usd)], ['Paid to you', money(summary.paid_usd)],
   ].map(([label, value]) => `<div class="partner-card">${label}<strong class="partner-stat">${escape(value)}</strong></div>`).join('')}</div>
+  ${result.provisioning?.state === 'pending' ? '<p class="partner-status">Some store offers are still being prepared. Ready codes are shown above; refresh shortly for the remaining offers.</p>' : ''}
   ${summary.unknown_proceeds ? '<p>Some purchases are awaiting store proceeds and are not included in the estimated amount.</p>' : ''}
   ${Number(summary.adjustments_usd) > 0 ? `<p class="partner-status">Previously paid purchases were refunded (${money(summary.adjustments_usd)}). Contact support to resolve the payout adjustment.</p>` : ''}
-  <div class="partner-grid"><section class="partner-card"><h2>Your referral code</h2><code class="partner-code">${escape(partner.referral_code)}</code>
-  <button data-copy="${escape(partner.referral_code)}">Copy referral code</button>
-  <p>Share this code and ask new subscribers to enter it before checkout. Referral codes track purchases; only separately configured store offers provide a discount. Renewals stay attributed to the account.</p>
+  <div class="partner-grid"><section class="partner-card"><h2>Optional tracking-only code · no discount</h2><code class="partner-code">${escape(partner.referral_code)}</code>
+  <button data-copy="${escape(partner.referral_code)}">Copy tracking-only code</button>
+  <p>The coupon codes above already link eligible purchases to you. This optional code tracks referrals without providing a discount. Renewals stay attributed to the account.</p>
   <p>Use this same referral code for App Store and Google Play purchases.</p></section><section class="partner-card">${rules}</section></div>
   <section class="partner-card"><h2>PayPal payout details</h2><div id="payout-saved" ${payout ? '' : 'hidden'}>
   <p>Saved: ${escape(payout?.paypal_email)} · ${escape(payout?.country)}</p>${administrative ? '' : '<button id="edit-payout" class="secondary">Edit payout details</button>'}</div>
@@ -106,6 +110,10 @@ function bindCopy() {
 async function partnerDashboard() {
   const result = await api('dashboard');
   root.innerHTML = dashboardMarkup(result); bindCopy();
+  if (result.provisioning?.state === 'pending') {
+    const button = document.createElement('button'); button.textContent = 'Refresh offer setup';
+    button.onclick = () => working(button, partnerDashboard); root.append(button);
+  }
   document.getElementById('edit-payout')?.addEventListener('click', () => {
     document.getElementById('payout').hidden = false;
     document.getElementById('payout-saved').hidden = true;
@@ -132,6 +140,7 @@ async function adminDashboard(partnerId) {
   selectedPartner = partnerId;
   const result = await api('admin_dashboard', { partner_id: partnerId });
   root.innerHTML = `<button id="back" class="secondary">Back to applications</button>${dashboardMarkup(result, true)}
+  <button id="retry-offers">Refresh automatic coupon setup</button>
   <section class="partner-card"><h2>Verify store proceeds</h2><p>Use the store financial report, after fees, taxes and refunds. Amounts must be in USD.</p>
   <form id="reconcile">${field('transaction_id', 'Transaction ID')}${field('net_usd', 'Verified net proceeds USD', 'number', '', 'step="0.0001" min="0"')}${field('reference', 'Store report reference', 'text', '', 'minlength="5"')}<button type="submit">Save verified proceeds</button></form></section>
   <section class="partner-card"><h2>Record a completed PayPal payment</h2><p>Select eligible purchases above, pay the saved PayPal address, then record the payment here. This action does not send money.</p>
@@ -148,6 +157,9 @@ async function adminDashboard(partnerId) {
   <label>One unused store code per line<textarea name="codes" required></textarea></label>${field('expires_at', 'Store expiration date', 'date')}
   <label><input type="checkbox" name="confirm_single_use" required> These are single-use, one-month-free codes for eligible new monthly subscribers.</label><button type="submit">Import private codes</button></form></section>`);
   bindCopy(); document.getElementById('back').onclick = () => working(document.getElementById('back'), adminList);
+  document.getElementById('retry-offers').onclick = event => working(event.currentTarget, async () => {
+    const response = await api('admin_provision', { partner_id: partnerId }); await adminDashboard(partnerId); notify(response.message);
+  });
   document.getElementById('toggle-status').onclick = event => working(event.currentTarget, async () => {
     await api('admin_status', { partner_id: partnerId, status: result.partner.status === 'active' ? 'suspended' : 'active' }); await adminDashboard(partnerId);
   });
